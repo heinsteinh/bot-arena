@@ -1,4 +1,5 @@
-#pragma once
+#ifndef ENGINE_CORE_WINDOW_HPP
+#define ENGINE_CORE_WINDOW_HPP
 
 namespace engine {
 
@@ -17,3 +18,5 @@ class Window {
 };
 
 }  // namespace engine
+
+#endif  // ENGINE_CORE_WINDOW_HPP

@@ -1,4 +1,5 @@
-#pragma once
+#ifndef ENGINE_PLATFORM_SDL_SDLWINDOW_HPP
+#define ENGINE_PLATFORM_SDL_SDLWINDOW_HPP
 
 #include <SDL3/SDL.h>
 
@@ -28,3 +29,5 @@ class SdlWindow final : public Window {
 };
 
 }  // namespace engine
+
+#endif  // ENGINE_PLATFORM_SDL_SDLWINDOW_HPP

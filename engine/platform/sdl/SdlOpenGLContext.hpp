@@ -1,4 +1,5 @@
-#pragma once
+#ifndef ENGINE_PLATFORM_SDL_SDLOPENGLCONTEXT_HPP
+#define ENGINE_PLATFORM_SDL_SDLOPENGLCONTEXT_HPP
 
 #include <SDL3/SDL.h>
 
@@ -21,3 +22,5 @@ class SdlOpenGLContext final : public GraphicsContext {
 };
 
 }  // namespace engine
+
+#endif  // ENGINE_PLATFORM_SDL_SDLOPENGLCONTEXT_HPP

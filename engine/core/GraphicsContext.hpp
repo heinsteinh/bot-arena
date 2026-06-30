@@ -1,4 +1,5 @@
-#pragma once
+#ifndef ENGINE_CORE_GRAPHICSCONTEXT_HPP
+#define ENGINE_CORE_GRAPHICSCONTEXT_HPP
 
 namespace engine {
 
@@ -11,3 +12,5 @@ class GraphicsContext {
 };
 
 }  // namespace engine
+
+#endif  // ENGINE_CORE_GRAPHICSCONTEXT_HPP
