@@ -23,6 +23,11 @@ void BotArenaGame::onUpdate(float dt) {
 }
 
 void BotArenaGame::onRender(engine::Renderer& renderer, int width, int height) {
+  const float aspect =
+      height > 0 ? static_cast<float>(width) / static_cast<float>(height)
+                 : 1.0f;
+  m_camera.setPerspective(60.0f, aspect, 0.1f, 100.0f);
+
   renderer.setCamera(m_camera);
 
   renderer.drawGrid(10.0f, 1.0f, {0.25f, 0.25f, 0.25f, 1.0f});
