@@ -1,0 +1,12 @@
+# Build output
+/build/
+
+# vcpkg installed dependencies
+vcpkg_installed/
+
+# Caches
+.cache/
+
+# Editor / OS
+.DS_Store
+*.swp

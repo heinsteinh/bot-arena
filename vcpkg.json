@@ -1,0 +1,23 @@
+{
+  "name": "bot-arena",
+  "version": "0.1.0",
+  "dependencies": [
+    "sdl3",
+    {
+      "name": "dbus",
+      "default-features": false
+    },
+    "glad",
+    "glm",
+    "entt",
+    "spdlog",
+    "yaml-cpp",
+    {
+      "name": "imgui",
+      "features": [
+        "sdl3-binding",
+        "opengl3-binding"
+      ]
+    }
+  ]
+}
