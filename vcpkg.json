@@ -11,6 +11,7 @@
     "glm",
     "entt",
     "spdlog",
+    "stb",
     "yaml-cpp",
     {
       "name": "imgui",

@@ -22,6 +22,8 @@ class OpenGLRenderer final : public Renderer {
                 const glm::vec4& color) override;
   void drawGrid(float halfSize, float spacing, const glm::vec4& color) override;
 
+  void saveScreenshot(const std::string& path, int width, int height) override;
+
  private:
   unsigned int m_vao = 0;
   unsigned int m_vbo = 0;

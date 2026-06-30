@@ -16,6 +16,7 @@ find_package(EnTT CONFIG REQUIRED)
 find_package(spdlog CONFIG REQUIRED)
 find_package(yaml-cpp CONFIG REQUIRED)
 find_package(imgui CONFIG REQUIRED)
+find_package(Stb REQUIRED)
 
 add_executable(bot_arena
     src/main.cpp
@@ -34,6 +35,7 @@ add_executable(bot_arena
 target_include_directories(bot_arena
     PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}
+        ${Stb_INCLUDE_DIR}
 )
 
 target_link_libraries(bot_arena

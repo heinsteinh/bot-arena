@@ -2,6 +2,7 @@
 
 #include <spdlog/spdlog.h>
 
+#include <cstdlib>
 #include <glm/glm.hpp>
 
 #include "engine/core/Time.hpp"
@@ -36,6 +37,9 @@ void Application::pushLayer(std::unique_ptr<Layer> layer) {
 }
 
 void Application::run() {
+  // When set, render a single frame, save it to the given path, then exit.
+  const char* screenshotPath = std::getenv("BOTARENA_SCREENSHOT");
+
   while (!m_window->shouldClose()) {
     Time::update();
 
@@ -55,6 +59,13 @@ void Application::run() {
     }
 
     m_renderer->endFrame();
+
+    // Capture the back buffer before it is swapped out, then stop.
+    if (screenshotPath) {
+      m_renderer->saveScreenshot(screenshotPath, m_window->width(),
+                                 m_window->height());
+      break;
+    }
 
     m_window->swapBuffers();
   }

@@ -2,6 +2,7 @@
 #define ENGINE_RENDERER_RENDERER_HPP
 
 #include <glm/glm.hpp>
+#include <string>
 
 #include "engine/renderer/Camera.hpp"
 
@@ -23,6 +24,10 @@ class Renderer {
                         const glm::vec4& color) = 0;
   virtual void drawGrid(float halfSize, float spacing,
                         const glm::vec4& color) = 0;
+
+  // Read back the current framebuffer and write it to a PNG file.
+  virtual void saveScreenshot(const std::string& path, int width,
+                              int height) = 0;
 };
 }  // namespace engine
 

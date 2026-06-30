@@ -1,10 +1,13 @@
 #include "engine/renderer/opengl/OpenGLRenderer.hpp"
 
 #include <glad/glad.h>
+#include <spdlog/spdlog.h>
 
-#include <glm/gtc/matrix_transform.hpp>
 #include <stdexcept>
 #include <vector>
+
+#define STB_IMAGE_WRITE_IMPLEMENTATION
+#include <stb_image_write.h>
 
 namespace engine {
 
@@ -113,25 +116,30 @@ void OpenGLRenderer::destroyResources() {
 void OpenGLRenderer::beginFrame(int width, int height) {
   glViewport(0, 0, width, height);
   glEnable(GL_DEPTH_TEST);
-
-  const float aspect =
-      height > 0 ? static_cast<float>(width) / static_cast<float>(height)
-                 : 1.0f;
-
-  const glm::mat4 projection =
-      glm::perspective(glm::radians(60.0f), aspect, 0.1f, 100.0f);
-
-  const glm::mat4 view =
-      glm::lookAt(glm::vec3{8.0f, 7.0f, 8.0f}, glm::vec3{0.0f, 0.0f, 0.0f},
-                  glm::vec3{0.0f, 1.0f, 0.0f});
-
-  m_viewProjection = projection * view;
 }
 
 void OpenGLRenderer::endFrame() {}
 
 void OpenGLRenderer::setCamera(const Camera& camera) {
   m_viewProjection = camera.viewProjection();
+}
+
+void OpenGLRenderer::saveScreenshot(const std::string& path, int width,
+                                    int height) {
+  std::vector<unsigned char> pixels(static_cast<size_t>(width) * height * 3);
+
+  glPixelStorei(GL_PACK_ALIGNMENT, 1);
+  glReadPixels(0, 0, width, height, GL_RGB, GL_UNSIGNED_BYTE, pixels.data());
+
+  // OpenGL reads bottom-to-top; PNG expects top-to-bottom.
+  stbi_flip_vertically_on_write(1);
+
+  if (stbi_write_png(path.c_str(), width, height, 3, pixels.data(),
+                     width * 3)) {
+    spdlog::info("Screenshot saved to {}", path);
+  } else {
+    spdlog::error("Failed to write screenshot to {}", path);
+  }
 }
 
 void OpenGLRenderer::clear(const glm::vec4& color) {
