@@ -10,3 +10,11 @@ vcpkg_installed/
 # Editor / OS
 .DS_Store
 *.swp
+
+# clangd compile DB symlink (-> build/)
+/compile_commands.json
+
+# Share VS Code project config (overrides global ignore of .vscode/)
+!.vscode/
+!.vscode/settings.json
+!.vscode/extensions.json
