@@ -4,7 +4,7 @@
 #include <glm/glm.hpp>
 
 #include "engine/core/Layer.hpp"
-#include "engine/renderer/Renderer.hpp"
+#include "engine/renderer/Camera.hpp"
 
 namespace game {
 
@@ -14,9 +14,11 @@ class BotArenaGame final : public engine::Layer {
   void onDetach() override;
 
   void onUpdate(float dt) override;
-  void onRender(engine::Renderer& renderer) override;
+  void onRender(engine::Renderer& renderer, int width, int height) override;
 
  private:
+  engine::Camera m_camera;
+
   glm::vec3 m_botPosition{0.0f, 0.0f, 0.0f};
   float m_time = 0.0f;
 };

@@ -51,7 +51,7 @@ void Application::run() {
     m_renderer->clear(glm::vec4{0.08f, 0.09f, 0.11f, 1.0f});
 
     for (auto& layer : m_layers) {
-      layer->onRender(*m_renderer);
+      layer->onRender(*m_renderer, m_window->width(), m_window->height());
     }
 
     m_renderer->endFrame();

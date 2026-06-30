@@ -7,8 +7,6 @@
 
 namespace engine {
 
-namespace engine {
-
 class Renderer {
  public:
   virtual ~Renderer() = default;

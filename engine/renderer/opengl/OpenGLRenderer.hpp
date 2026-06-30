@@ -1,6 +1,7 @@
 #ifndef ENGINE_RENDERER_OPENGL_OPENGLRENDERER_HPP
 #define ENGINE_RENDERER_OPENGL_OPENGLRENDERER_HPP
 
+#include "engine/renderer/Camera.hpp"
 #include "engine/renderer/Renderer.hpp"
 
 namespace engine {
@@ -12,9 +13,9 @@ class OpenGLRenderer final : public Renderer {
 
   void beginFrame(int width, int height) override;
   void endFrame() override;
-
   void clear(const glm::vec4& color) override;
 
+  void setCamera(const Camera& camera) override;
   void drawLine(const glm::vec3& a, const glm::vec3& b,
                 const glm::vec4& color) override;
   void drawCube(const glm::vec3& center, const glm::vec3& size,

@@ -130,6 +130,10 @@ void OpenGLRenderer::beginFrame(int width, int height) {
 
 void OpenGLRenderer::endFrame() {}
 
+void OpenGLRenderer::setCamera(const Camera& camera) {
+  m_viewProjection = camera.viewProjection();
+}
+
 void OpenGLRenderer::clear(const glm::vec4& color) {
   glClearColor(color.r, color.g, color.b, color.a);
   glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);

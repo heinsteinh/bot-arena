@@ -6,7 +6,11 @@
 
 namespace game {
 
-void BotArenaGame::onAttach() { spdlog::info("BotArenaGame attached"); }
+void BotArenaGame::onAttach() {
+  spdlog::info("BotArenaGame attached");
+
+  m_camera.lookAt({8.0f, 7.0f, 8.0f}, {0.0f, 0.0f, 0.0f});
+}
 
 void BotArenaGame::onDetach() { spdlog::info("BotArenaGame detached"); }
 
@@ -18,7 +22,9 @@ void BotArenaGame::onUpdate(float dt) {
   m_botPosition.z = std::cos(m_time) * 2.0f;
 }
 
-void BotArenaGame::onRender(engine::Renderer& renderer) {
+void BotArenaGame::onRender(engine::Renderer& renderer, int width, int height) {
+  renderer.setCamera(m_camera);
+
   renderer.drawGrid(10.0f, 1.0f, {0.25f, 0.25f, 0.25f, 1.0f});
 
   renderer.drawCube({0.0f, 0.5f, -5.0f}, {10.0f, 1.0f, 0.25f},
