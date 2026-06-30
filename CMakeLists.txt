@@ -16,6 +16,18 @@ find_package(imgui CONFIG REQUIRED)
 
 add_executable(bot_arena
     src/main.cpp
+
+    engine/core/Application.cpp
+
+    engine/platform/sdl/SdlWindow.cpp
+    engine/platform/sdl/SdlOpenGLContext.cpp
+
+    engine/renderer/opengl/OpenGLRenderer.cpp
+)
+
+target_include_directories(bot_arena
+    PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}
 )
 
 target_link_libraries(bot_arena
