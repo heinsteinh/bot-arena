@@ -36,6 +36,7 @@ add_executable(bot_arena
     engine/renderer/opengl/OpenGLBuffer.cpp
     engine/renderer/opengl/OpenGLVertexArray.cpp
     engine/renderer/opengl/OpenGLShader.cpp
+    engine/renderer/opengl/OpenGLUniformBuffer.cpp
 
     engine/renderer/RenderBackend.cpp
     engine/renderer/RenderQueue.cpp
@@ -83,6 +84,7 @@ add_executable(bot_arena_tests
     tests/test_mesh_renderer.cpp
     tests/test_job_system.cpp
     tests/test_command_buffer_pool.cpp
+    tests/test_camera_uniforms.cpp
 
     engine/core/Arena.cpp
     engine/core/JobSystem.cpp
