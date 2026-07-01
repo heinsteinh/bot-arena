@@ -31,6 +31,7 @@ add_executable(bot_arena
     engine/platform/sdl/SdlOpenGLContext.cpp
 
     engine/renderer/opengl/OpenGLBackend.cpp
+    engine/renderer/opengl/OpenGLBuffer.cpp
 
     engine/renderer/RenderBackend.cpp
     engine/renderer/RenderQueue.cpp
@@ -65,6 +66,7 @@ add_executable(bot_arena_tests
     tests/test_sort_key.cpp
     tests/test_render_queue.cpp
     tests/test_resource_registry.cpp
+    tests/test_buffer_layout.cpp
 
     engine/core/Arena.cpp
     engine/renderer/RenderQueue.cpp
