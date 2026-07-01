@@ -8,6 +8,7 @@
 #include "engine/core/Arena.hpp"
 #include "engine/core/Base.hpp"
 #include "engine/renderer/CameraUniforms.hpp"
+#include "engine/renderer/LightUniforms.hpp"
 #include "engine/renderer/RenderQueue.hpp"
 
 namespace engine {
@@ -25,6 +26,13 @@ class RenderBackend {
   virtual void execute(const std::vector<RenderEntry>& entries,
                        const CameraUniforms& camera, Arena& scratch,
                        const ResourceRegistry& registry) = 0;
+  // Render mesh depth from the light's POV into the bound depth target.
+  virtual void executeShadow(const std::vector<RenderEntry>& entries,
+                             const glm::mat4& lightViewProj, Arena& scratch,
+                             const ResourceRegistry& registry) = 0;
+  // Upload the light block (binding 1) and remember the shadow map texture.
+  virtual void setLight(const LightUniforms& light,
+                        uint32_t shadowMapTexture) = 0;
   // Draw a tonemapped quad sampling `sourceColorTexture` into the bound target,
   // covering the NDC rectangle {x0,y0,x1,y1}.
   virtual void blit(uint32_t sourceColorTexture,

@@ -13,6 +13,7 @@
 #include "engine/renderer/CameraUniforms.hpp"
 #include "engine/renderer/CommandBufferPool.hpp"
 #include "engine/renderer/Framebuffer.hpp"
+#include "engine/renderer/LightUniforms.hpp"
 #include "engine/renderer/MinimapRect.hpp"
 #include "engine/renderer/RenderBackend.hpp"
 #include "engine/renderer/RenderPass.hpp"
@@ -35,6 +36,8 @@ class Renderer {
   void setMinimapCamera(const Camera& camera) {
     m_minimapCamera = makeCameraUniforms(camera.view(), camera.projection());
   }
+
+  void setLightDirection(const glm::vec3& dir) { m_lightDir = dir; }
 
   RenderQueue& queue() { return m_lanes[0]->queue; }
   ResourceRegistry& registry() { return m_registry; }
@@ -68,6 +71,11 @@ class Renderer {
   RenderPass m_minimapPass;
   CameraUniforms m_minimapCamera;
   static constexpr uint32_t kMinimapSize = 512;
+  Ref<Framebuffer> m_shadowFBO;
+  RenderPass m_shadowPass;
+  glm::vec3 m_lightDir{glm::normalize(glm::vec3(0.4f, 0.8f, 0.3f))};
+  LightUniforms m_light;
+  static constexpr uint32_t kShadowSize = 2048;
   int m_width = 0;
   int m_height = 0;
   MeshHandle m_cubeMesh = 0;

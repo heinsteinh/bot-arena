@@ -31,18 +31,35 @@ void OpenGLFramebuffer::invalidate() {
 
   glCreateFramebuffers(1, &m_rendererID);
 
-  glCreateTextures(GL_TEXTURE_2D, 1, &m_color);
-  glTextureStorage2D(m_color, 1, m_spec.hdr ? GL_RGBA16F : GL_RGBA8, w, h);
-  glTextureParameteri(m_color, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-  glTextureParameteri(m_color, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-  glTextureParameteri(m_color, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-  glTextureParameteri(m_color, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-  glNamedFramebufferTexture(m_rendererID, GL_COLOR_ATTACHMENT0, m_color, 0);
+  if (m_spec.depthOnly) {
+    glCreateTextures(GL_TEXTURE_2D, 1, &m_depth);
+    glTextureStorage2D(m_depth, 1, GL_DEPTH_COMPONENT32F, w, h);
+    glTextureParameteri(m_depth, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTextureParameteri(m_depth, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTextureParameteri(m_depth, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
+    glTextureParameteri(m_depth, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
+    const float border[4] = {1.0f, 1.0f, 1.0f, 1.0f};
+    glTextureParameterfv(m_depth, GL_TEXTURE_BORDER_COLOR, border);
+    glTextureParameteri(m_depth, GL_TEXTURE_COMPARE_MODE,
+                        GL_COMPARE_REF_TO_TEXTURE);
+    glTextureParameteri(m_depth, GL_TEXTURE_COMPARE_FUNC, GL_LEQUAL);
+    glNamedFramebufferTexture(m_rendererID, GL_DEPTH_ATTACHMENT, m_depth, 0);
+    glNamedFramebufferDrawBuffer(m_rendererID, GL_NONE);
+    glNamedFramebufferReadBuffer(m_rendererID, GL_NONE);
+  } else {
+    glCreateTextures(GL_TEXTURE_2D, 1, &m_color);
+    glTextureStorage2D(m_color, 1, m_spec.hdr ? GL_RGBA16F : GL_RGBA8, w, h);
+    glTextureParameteri(m_color, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTextureParameteri(m_color, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTextureParameteri(m_color, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTextureParameteri(m_color, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glNamedFramebufferTexture(m_rendererID, GL_COLOR_ATTACHMENT0, m_color, 0);
 
-  glCreateTextures(GL_TEXTURE_2D, 1, &m_depth);
-  glTextureStorage2D(m_depth, 1, GL_DEPTH24_STENCIL8, w, h);
-  glNamedFramebufferTexture(m_rendererID, GL_DEPTH_STENCIL_ATTACHMENT, m_depth,
-                            0);
+    glCreateTextures(GL_TEXTURE_2D, 1, &m_depth);
+    glTextureStorage2D(m_depth, 1, GL_DEPTH24_STENCIL8, w, h);
+    glNamedFramebufferTexture(m_rendererID, GL_DEPTH_STENCIL_ATTACHMENT,
+                              m_depth, 0);
+  }
 
   if (glCheckNamedFramebufferStatus(m_rendererID, GL_FRAMEBUFFER) !=
       GL_FRAMEBUFFER_COMPLETE) {

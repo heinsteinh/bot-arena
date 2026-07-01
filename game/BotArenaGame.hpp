@@ -36,6 +36,7 @@ class BotArenaGame final : public engine::Layer {
 
   bool m_resourcesReady = false;
   engine::MaterialHandle m_wallMat = 0;
+  engine::MaterialHandle m_groundMat = 0;
   engine::MaterialHandle m_swarmMats[3] = {0, 0, 0};
 
   static constexpr std::size_t kBotCount = 2048;

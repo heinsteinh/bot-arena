@@ -30,6 +30,13 @@ Renderer::Renderer(JobSystem& jobs)
   m_minimapFBO =
       Framebuffer::Create(FramebufferSpec{kMinimapSize, kMinimapSize, true});
   m_minimapPass = RenderPass{m_minimapFBO, {0.02f, 0.03f, 0.05f, 1.0f}, true};
+
+  FramebufferSpec shadowSpec;
+  shadowSpec.width = kShadowSize;
+  shadowSpec.height = kShadowSize;
+  shadowSpec.depthOnly = true;
+  m_shadowFBO = Framebuffer::Create(shadowSpec);
+  m_shadowPass = RenderPass{m_shadowFBO, {0.0f, 0.0f, 0.0f, 1.0f}, true};
 }
 
 void Renderer::initBuiltins() {
@@ -104,6 +111,17 @@ void Renderer::endFrame() {
                    [](const RenderEntry& a, const RenderEntry& b) {
                      return a.sortKey < b.sortKey;
                    });
+
+  // Shadow pass -> depth-only shadow map (light POV).
+  const glm::mat4 lightViewProj =
+      makeLightViewProj(m_lightDir, {0.0f, 0.5f, 0.0f}, 16.0f, 0.1f, 64.0f);
+  m_backend->beginPass(m_shadowPass.target.get(), m_shadowPass.clearColor,
+                       m_shadowPass.clearDepth, kShadowSize, kShadowSize);
+  m_backend->executeShadow(m_merged, lightViewProj, m_lanes[0]->arena,
+                           m_registry);
+  m_light.lightViewProj = lightViewProj;
+  m_light.lightDir = glm::vec4(glm::normalize(m_lightDir), 0.0f);
+  m_backend->setLight(m_light, m_shadowFBO->depthAttachment());
 
   // Minimap pass -> offscreen texture (top-down camera).
   m_backend->beginPass(m_minimapPass.target.get(), m_minimapPass.clearColor,
