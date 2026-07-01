@@ -86,6 +86,7 @@ add_executable(bot_arena_tests
     tests/test_job_system.cpp
     tests/test_command_buffer_pool.cpp
     tests/test_camera_uniforms.cpp
+    tests/test_minimap_rect.cpp
 
     engine/core/Arena.cpp
     engine/core/JobSystem.cpp
