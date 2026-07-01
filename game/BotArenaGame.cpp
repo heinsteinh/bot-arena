@@ -85,13 +85,16 @@ void BotArenaGame::onRender(engine::Renderer& renderer, int width, int height) {
     m_wallMat = renderer.registry().registerMaterial(
         {{0.7f, 0.7f, 0.7f, 1.0f}, 0.0f, 0.5f, s});
     m_groundMat = renderer.registry().registerMaterial(
-        {{0.35f, 0.35f, 0.38f, 1.0f}, 0.0f, 0.5f, s});
+        {{0.35f, 0.35f, 0.38f, 1.0f}, 0.0f, 0.85f, s});
     m_swarmMats[0] = renderer.registry().registerMaterial(
-        {{0.9f, 0.3f, 0.2f, 1.0f}, 0.0f, 0.5f, s});
-    m_swarmMats[1] = renderer.registry().registerMaterial(
-        {{0.2f, 0.7f, 0.9f, 1.0f}, 0.0f, 0.5f, s});
+        {{1.0f, 0.78f, 0.34f, 1.0f}, 1.0f, 0.25f, s});  // polished gold metal
+    m_swarmMats[1] =
+        renderer.registry().registerMaterial({{0.6f, 0.7f, 0.9f, 1.0f},
+                                              1.0f,
+                                              0.45f,
+                                              s});  // brushed steel-blue metal
     m_swarmMats[2] = renderer.registry().registerMaterial(
-        {{0.5f, 0.9f, 0.3f, 1.0f}, 0.0f, 0.5f, s});
+        {{0.85f, 0.28f, 0.24f, 1.0f}, 0.0f, 0.30f, s});  // glossy red plastic
     m_resourcesReady = true;
   }
 

@@ -219,7 +219,10 @@ unsigned int createLightingProgram() {
       vec3 V = normalize(u_cameraPos.xyz - worldPos);
       vec3 F0 = mix(vec3(0.04), albedo, metallic);
 
-      vec3 color = 0.03 * albedo;     // flat ambient
+      // Constant ambient (no IBL): Fresnel-weighted so metals reflect too.
+      vec3 Famb = fresnelSchlick(max(dot(N, V), 0.0), F0);
+      vec3 kdAmb = (vec3(1.0) - Famb) * (1.0 - metallic);
+      vec3 color = (kdAmb * albedo + Famb) * 0.12;
 
       // Directional light (shadowed).
       vec3 L = normalize(u_lightDir.xyz);
