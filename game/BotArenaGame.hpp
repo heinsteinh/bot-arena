@@ -1,6 +1,7 @@
 #ifndef GAME_BOTARENAGAME_HPP
 #define GAME_BOTARENAGAME_HPP
 
+#include <cstddef>
 #include <glm/glm.hpp>
 
 #include "engine/core/Layer.hpp"
@@ -30,13 +31,13 @@ class BotArenaGame final : public engine::Layer {
 
   CameraMode m_cameraMode = CameraMode::Fly;
 
-  glm::vec3 m_botPosition{0.0f, 0.0f, 0.0f};
   float m_time = 0.0f;
 
   bool m_resourcesReady = false;
   engine::MaterialHandle m_wallMat = 0;
-  engine::MaterialHandle m_obstacleMat = 0;
-  engine::MaterialHandle m_botMat = 0;
+  engine::MaterialHandle m_swarmMats[3] = {0, 0, 0};
+
+  static constexpr std::size_t kBotCount = 2048;
 
   void cycleCameraMode();
 };
