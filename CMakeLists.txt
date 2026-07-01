@@ -56,8 +56,10 @@ enable_testing()
 add_executable(bot_arena_tests
     tests/test_arena.cpp
     tests/test_sort_key.cpp
+    tests/test_render_queue.cpp
 
     engine/core/Arena.cpp
+    engine/renderer/RenderQueue.cpp
 )
 
 target_include_directories(bot_arena_tests
