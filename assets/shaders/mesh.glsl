@@ -4,7 +4,13 @@
 layout(location = 0) in vec3 a_position;
 layout(location = 1) in vec3 a_normal;
 
-uniform mat4 u_viewProjection;
+layout(std140, binding = 0) uniform Camera {
+    mat4 u_view;
+    mat4 u_projection;
+    mat4 u_viewProjection;
+    vec4 u_cameraPos;
+};
+
 uniform mat4 u_transform;
 
 out vec3 v_normal;

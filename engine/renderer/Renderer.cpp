@@ -95,7 +95,7 @@ void Renderer::endFrame() {
                    [](const RenderEntry& a, const RenderEntry& b) {
                      return a.sortKey < b.sortKey;
                    });
-  m_backend->execute(m_merged, m_viewProjection, m_lanes[0]->arena, m_registry);
+  m_backend->execute(m_merged, m_camera, m_lanes[0]->arena, m_registry);
   m_backend->endFrame();
 }
 
