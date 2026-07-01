@@ -16,9 +16,6 @@ class OpenGLBackend final : public RenderBackend {
 
   void beginPass(Framebuffer* target, const glm::vec4& clearColor,
                  bool clearDepth, int viewportW, int viewportH) override;
-  void execute(const std::vector<RenderEntry>& entries,
-               const CameraUniforms& camera, Arena& scratch,
-               const ResourceRegistry& registry) override;
   void executeGeometry(const std::vector<RenderEntry>& entries,
                        const CameraUniforms& camera, Arena& scratch,
                        const ResourceRegistry& registry) override;
@@ -33,10 +30,6 @@ class OpenGLBackend final : public RenderBackend {
   void readPixels(int x, int y, int width, int height, void* out) override;
 
  private:
-  unsigned int m_vao = 0;
-  unsigned int m_vbo = 0;
-  unsigned int m_shader = 0;
-  int m_vboCapacityBytes = 0;
   Ref<UniformBuffer> m_cameraUBO;
 
   unsigned int m_blitShader = 0;

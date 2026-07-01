@@ -24,9 +24,6 @@ class RenderBackend {
   // Bind `target` (null = default framebuffer + the given viewport) and clear.
   virtual void beginPass(Framebuffer* target, const glm::vec4& clearColor,
                          bool clearDepth, int viewportW, int viewportH) = 0;
-  virtual void execute(const std::vector<RenderEntry>& entries,
-                       const CameraUniforms& camera, Arena& scratch,
-                       const ResourceRegistry& registry) = 0;
   // Render meshes into the bound MRT G-buffer (albedo/normal/world-pos).
   virtual void executeGeometry(const std::vector<RenderEntry>& entries,
                                const CameraUniforms& camera, Arena& scratch,
