@@ -23,6 +23,7 @@ add_executable(bot_arena
 
     engine/core/Application.cpp
     engine/core/Time.cpp
+    engine/core/Input.cpp
 
     engine/platform/sdl/SdlWindow.cpp
     engine/platform/sdl/SdlOpenGLContext.cpp

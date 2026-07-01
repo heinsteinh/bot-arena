@@ -5,6 +5,7 @@
 #include <cstdlib>
 #include <glm/glm.hpp>
 
+#include "engine/core/Input.hpp"
 #include "engine/core/Time.hpp"
 #include "engine/platform/sdl/SdlOpenGLContext.hpp"
 #include "engine/platform/sdl/SdlWindow.hpp"
@@ -42,6 +43,7 @@ void Application::run() {
 
   while (!m_window->shouldClose()) {
     Time::update();
+    Input::beginFrame();
 
     m_window->pollEvents();
 
