@@ -40,6 +40,7 @@ add_executable(bot_arena
     engine/renderer/Renderer.cpp
     engine/renderer/DebugRenderer.cpp
     engine/renderer/ResourceRegistry.cpp
+    engine/renderer/MeshRenderer.cpp
 
     game/BotArenaGame.cpp
 )
@@ -75,10 +76,12 @@ add_executable(bot_arena_tests
     tests/test_resource_registry.cpp
     tests/test_buffer_layout.cpp
     tests/test_shader_parser.cpp
+    tests/test_mesh_renderer.cpp
 
     engine/core/Arena.cpp
     engine/renderer/RenderQueue.cpp
     engine/renderer/ResourceRegistry.cpp
+    engine/renderer/MeshRenderer.cpp
 )
 
 target_include_directories(bot_arena_tests

@@ -11,7 +11,7 @@ using MeshHandle = uint16_t;
 using MaterialHandle = uint16_t;
 
 enum class RenderLayer : uint8_t { Grid = 0, Opaque = 1, Debug = 2, UI = 3 };
-enum class RenderCommandType : uint8_t { Line, Cube };
+enum class RenderCommandType : uint8_t { Line, Cube, Mesh };
 
 struct RenderCommand {
   RenderCommandType type = RenderCommandType::Line;
@@ -23,6 +23,10 @@ struct RenderCommand {
 
   glm::vec3 lineStart{0.0f};
   glm::vec3 lineEnd{0.0f};
+
+  MeshHandle mesh = 0;
+  MaterialHandle material = 0;
+  glm::mat4 transform{1.0f};
 
   uint64_t sortKey = 0;
 };
