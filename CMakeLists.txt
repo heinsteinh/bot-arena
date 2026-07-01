@@ -33,6 +33,7 @@ add_executable(bot_arena
     engine/renderer/opengl/OpenGLBackend.cpp
     engine/renderer/opengl/OpenGLBuffer.cpp
     engine/renderer/opengl/OpenGLVertexArray.cpp
+    engine/renderer/opengl/OpenGLShader.cpp
 
     engine/renderer/RenderBackend.cpp
     engine/renderer/RenderQueue.cpp
@@ -47,6 +48,11 @@ target_include_directories(bot_arena
     PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}
         ${Stb_INCLUDE_DIR}
+)
+
+target_compile_definitions(bot_arena
+    PRIVATE
+        BOTARENA_ASSET_DIR="${CMAKE_CURRENT_SOURCE_DIR}/assets"
 )
 
 target_link_libraries(bot_arena
@@ -68,6 +74,7 @@ add_executable(bot_arena_tests
     tests/test_render_queue.cpp
     tests/test_resource_registry.cpp
     tests/test_buffer_layout.cpp
+    tests/test_shader_parser.cpp
 
     engine/core/Arena.cpp
     engine/renderer/RenderQueue.cpp
