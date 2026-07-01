@@ -75,6 +75,47 @@ unsigned int createProgram() {
   return program;
 }
 
+unsigned int createCompositeProgram() {
+  constexpr const char* vs = R"(
+    #version 460 core
+    layout(location = 0) in vec2 a_position;
+    layout(location = 1) in vec2 a_uv;
+    out vec2 v_uv;
+    void main() {
+      v_uv = a_uv;
+      gl_Position = vec4(a_position, 0.0, 1.0);
+    }
+  )";
+  constexpr const char* fs = R"(
+    #version 460 core
+    in vec2 v_uv;
+    out vec4 fragColor;
+    uniform sampler2D u_scene;
+    void main() {
+      vec3 c = texture(u_scene, v_uv).rgb;
+      c = c / (c + vec3(1.0));        // Reinhard tonemap
+      c = pow(c, vec3(1.0 / 2.2));    // gamma
+      fragColor = vec4(c, 1.0);
+    }
+  )";
+  const unsigned int v = compileShader(GL_VERTEX_SHADER, vs);
+  const unsigned int f = compileShader(GL_FRAGMENT_SHADER, fs);
+  const unsigned int program = glCreateProgram();
+  glAttachShader(program, v);
+  glAttachShader(program, f);
+  glLinkProgram(program);
+  glDeleteShader(v);
+  glDeleteShader(f);
+  int ok = 0;
+  glGetProgramiv(program, GL_LINK_STATUS, &ok);
+  if (!ok) {
+    char log[1024];
+    glGetProgramInfoLog(program, sizeof(log), nullptr, log);
+    throw std::runtime_error(log);
+  }
+  return program;
+}
+
 // Appends one vertex (pos + color) to out.
 void pushVertex(std::vector<float>& out, const glm::vec3& p,
                 const glm::vec4& c) {
@@ -122,16 +163,42 @@ OpenGLBackend::OpenGLBackend() {
   glBindVertexArray(0);
 
   m_cameraUBO = UniformBuffer::Create(sizeof(CameraUniforms), 0);
+
+  m_sceneFBO = Framebuffer::Create(FramebufferSpec{});
+  m_compositeShader = createCompositeProgram();
+
+  // Fullscreen triangle: position(2) + uv(2).
+  const float fs[] = {-1.0f, -1.0f, 0.0f,  0.0f, 3.0f, -1.0f,
+                      2.0f,  0.0f,  -1.0f, 3.0f, 0.0f, 2.0f};
+  glCreateVertexArrays(1, &m_fsVao);
+  glCreateBuffers(1, &m_fsVbo);
+  glBindVertexArray(m_fsVao);
+  glBindBuffer(GL_ARRAY_BUFFER, m_fsVbo);
+  glBufferData(GL_ARRAY_BUFFER, sizeof(fs), fs, GL_STATIC_DRAW);
+  glEnableVertexAttribArray(0);
+  glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, sizeof(float) * 4,
+                        reinterpret_cast<void*>(0));
+  glEnableVertexAttribArray(1);
+  glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, sizeof(float) * 4,
+                        reinterpret_cast<void*>(sizeof(float) * 2));
+  glBindVertexArray(0);
 }
 
 OpenGLBackend::~OpenGLBackend() {
   if (m_shader) glDeleteProgram(m_shader);
+  if (m_compositeShader) glDeleteProgram(m_compositeShader);
   if (m_vbo) glDeleteBuffers(1, &m_vbo);
   if (m_vao) glDeleteVertexArrays(1, &m_vao);
+  if (m_fsVbo) glDeleteBuffers(1, &m_fsVbo);
+  if (m_fsVao) glDeleteVertexArrays(1, &m_fsVao);
 }
 
 void OpenGLBackend::beginFrame(int width, int height) {
-  glViewport(0, 0, width, height);
+  m_width = width;
+  m_height = height;
+  m_sceneFBO->resize(static_cast<uint32_t>(width),
+                     static_cast<uint32_t>(height));
+  m_sceneFBO->bind();
   glEnable(GL_DEPTH_TEST);
   glClearColor(0.08f, 0.09f, 0.11f, 1.0f);
   glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -204,7 +271,21 @@ void OpenGLBackend::execute(const std::vector<RenderEntry>& entries,
   glBindVertexArray(0);
 }
 
-void OpenGLBackend::endFrame() {}
+void OpenGLBackend::endFrame() {
+  m_sceneFBO->unbind();
+  glViewport(0, 0, m_width, m_height);
+  glDisable(GL_DEPTH_TEST);
+  glClear(GL_COLOR_BUFFER_BIT);
+
+  glUseProgram(m_compositeShader);
+  glBindTextureUnit(0, m_sceneFBO->colorAttachment());
+  glUniform1i(glGetUniformLocation(m_compositeShader, "u_scene"), 0);
+  glBindVertexArray(m_fsVao);
+  glDrawArrays(GL_TRIANGLES, 0, 3);
+  glBindVertexArray(0);
+
+  glEnable(GL_DEPTH_TEST);
+}
 
 void OpenGLBackend::readPixels(int x, int y, int width, int height, void* out) {
   glPixelStorei(GL_PACK_ALIGNMENT, 1);

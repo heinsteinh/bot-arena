@@ -2,6 +2,7 @@
 #define ENGINE_RENDERER_OPENGL_OPENGLBACKEND_HPP
 
 #include "engine/core/Base.hpp"
+#include "engine/renderer/Framebuffer.hpp"
 #include "engine/renderer/RenderBackend.hpp"
 #include "engine/renderer/UniformBuffer.hpp"
 
@@ -25,6 +26,13 @@ class OpenGLBackend final : public RenderBackend {
   unsigned int m_shader = 0;
   int m_vboCapacityBytes = 0;
   Ref<UniformBuffer> m_cameraUBO;
+
+  Ref<Framebuffer> m_sceneFBO;
+  unsigned int m_compositeShader = 0;
+  unsigned int m_fsVao = 0;
+  unsigned int m_fsVbo = 0;
+  int m_width = 0;
+  int m_height = 0;
 };
 
 }  // namespace engine
