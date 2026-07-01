@@ -37,6 +37,7 @@ add_executable(bot_arena
     engine/renderer/opengl/OpenGLVertexArray.cpp
     engine/renderer/opengl/OpenGLShader.cpp
     engine/renderer/opengl/OpenGLUniformBuffer.cpp
+    engine/renderer/opengl/OpenGLFramebuffer.cpp
 
     engine/renderer/RenderBackend.cpp
     engine/renderer/RenderQueue.cpp
