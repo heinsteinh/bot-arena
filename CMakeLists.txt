@@ -36,6 +36,7 @@ add_executable(bot_arena
     engine/renderer/RenderQueue.cpp
     engine/renderer/Renderer.cpp
     engine/renderer/DebugRenderer.cpp
+    engine/renderer/ResourceRegistry.cpp
 
     game/BotArenaGame.cpp
 )
@@ -63,9 +64,11 @@ add_executable(bot_arena_tests
     tests/test_arena.cpp
     tests/test_sort_key.cpp
     tests/test_render_queue.cpp
+    tests/test_resource_registry.cpp
 
     engine/core/Arena.cpp
     engine/renderer/RenderQueue.cpp
+    engine/renderer/ResourceRegistry.cpp
 )
 
 target_include_directories(bot_arena_tests
