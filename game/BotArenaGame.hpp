@@ -8,6 +8,7 @@
 #include "engine/renderer/FlyCameraController.hpp"
 #include "engine/renderer/OrbitCameraController.hpp"
 #include "engine/renderer/OrthographicCamera.hpp"
+#include "engine/renderer/RenderCommand.hpp"
 
 namespace game {
 
@@ -31,6 +32,11 @@ class BotArenaGame final : public engine::Layer {
 
   glm::vec3 m_botPosition{0.0f, 0.0f, 0.0f};
   float m_time = 0.0f;
+
+  bool m_resourcesReady = false;
+  engine::MaterialHandle m_wallMat = 0;
+  engine::MaterialHandle m_obstacleMat = 0;
+  engine::MaterialHandle m_botMat = 0;
 
   void cycleCameraMode();
 };
