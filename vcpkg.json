@@ -12,6 +12,7 @@
     "entt",
     "spdlog",
     "stb",
+    "catch2",
     "yaml-cpp",
     {
       "name": "imgui",

@@ -5,10 +5,11 @@
 #include <cstdlib>
 #include <glm/glm.hpp>
 
+#include "engine/core/Input.hpp"
 #include "engine/core/Time.hpp"
 #include "engine/platform/sdl/SdlOpenGLContext.hpp"
 #include "engine/platform/sdl/SdlWindow.hpp"
-#include "engine/renderer/opengl/OpenGLRenderer.hpp"
+#include "engine/renderer/Renderer.hpp"
 
 namespace engine {
 
@@ -20,7 +21,7 @@ Application::Application() {
 
   m_window = std::move(sdlWindow);
   m_context = std::make_unique<SdlOpenGLContext>(*rawSdlWindow);
-  m_renderer = std::make_unique<OpenGLRenderer>();
+  m_renderer = std::make_unique<Renderer>();
 
   spdlog::info("Application initialized");
 }
@@ -42,6 +43,7 @@ void Application::run() {
 
   while (!m_window->shouldClose()) {
     Time::update();
+    Input::beginFrame();
 
     m_window->pollEvents();
 
@@ -52,7 +54,6 @@ void Application::run() {
     }
 
     m_renderer->beginFrame(m_window->width(), m_window->height());
-    m_renderer->clear(glm::vec4{0.08f, 0.09f, 0.11f, 1.0f});
 
     for (auto& layer : m_layers) {
       layer->onRender(*m_renderer, m_window->width(), m_window->height());

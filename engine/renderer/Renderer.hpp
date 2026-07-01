@@ -4,31 +4,39 @@
 #include <glm/glm.hpp>
 #include <string>
 
-#include "engine/renderer/Camera.hpp"
+#include "engine/core/Arena.hpp"
+#include "engine/core/Base.hpp"
+#include "engine/renderer/RenderBackend.hpp"
+#include "engine/renderer/RenderQueue.hpp"
 
 namespace engine {
 
 class Renderer {
  public:
-  virtual ~Renderer() = default;
+  Renderer();
 
-  virtual void beginFrame(int width, int height) = 0;
-  virtual void endFrame() = 0;
-  virtual void clear(const glm::vec4& color) = 0;
+  void beginFrame(int width, int height);
+  void endFrame();
 
-  virtual void setCamera(const Camera& camera) = 0;
+  void setViewProjection(const glm::mat4& viewProjection) {
+    m_viewProjection = viewProjection;
+  }
 
-  virtual void drawLine(const glm::vec3& a, const glm::vec3& b,
-                        const glm::vec4& color) = 0;
-  virtual void drawCube(const glm::vec3& center, const glm::vec3& size,
-                        const glm::vec4& color) = 0;
-  virtual void drawGrid(float halfSize, float spacing,
-                        const glm::vec4& color) = 0;
+  RenderQueue& queue() { return m_queue; }
 
-  // Read back the current framebuffer and write it to a PNG file.
-  virtual void saveScreenshot(const std::string& path, int width,
-                              int height) = 0;
+  void saveScreenshot(const std::string& path, int width, int height);
+
+ private:
+  static constexpr std::size_t kArenaBytes = 8 * 1024 * 1024;
+
+  Arena m_arena;
+  RenderQueue m_queue;
+  Scope<RenderBackend> m_backend;
+  glm::mat4 m_viewProjection{1.0f};
+  int m_width = 0;
+  int m_height = 0;
 };
+
 }  // namespace engine
 
 #endif  // ENGINE_RENDERER_RENDERER_HPP

@@ -17,17 +17,25 @@ find_package(spdlog CONFIG REQUIRED)
 find_package(yaml-cpp CONFIG REQUIRED)
 find_package(imgui CONFIG REQUIRED)
 find_package(Stb REQUIRED)
+find_package(Catch2 3 CONFIG REQUIRED)
 
 add_executable(bot_arena
     src/main.cpp
 
     engine/core/Application.cpp
+    engine/core/Arena.cpp
     engine/core/Time.cpp
+    engine/core/Input.cpp
 
     engine/platform/sdl/SdlWindow.cpp
     engine/platform/sdl/SdlOpenGLContext.cpp
-    
-    engine/renderer/opengl/OpenGLRenderer.cpp
+
+    engine/renderer/opengl/OpenGLBackend.cpp
+
+    engine/renderer/RenderBackend.cpp
+    engine/renderer/RenderQueue.cpp
+    engine/renderer/Renderer.cpp
+    engine/renderer/DebugRenderer.cpp
 
     game/BotArenaGame.cpp
 )
@@ -48,3 +56,24 @@ target_link_libraries(bot_arena
         yaml-cpp::yaml-cpp
         imgui::imgui
 )
+
+enable_testing()
+
+add_executable(bot_arena_tests
+    tests/test_arena.cpp
+    tests/test_sort_key.cpp
+    tests/test_render_queue.cpp
+
+    engine/core/Arena.cpp
+    engine/renderer/RenderQueue.cpp
+)
+
+target_include_directories(bot_arena_tests
+    PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}
+)
+
+target_link_libraries(bot_arena_tests
+    PRIVATE glm::glm Catch2::Catch2WithMain
+)
+
+add_test(NAME bot_arena_tests COMMAND bot_arena_tests)
