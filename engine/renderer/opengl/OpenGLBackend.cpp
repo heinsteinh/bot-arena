@@ -7,6 +7,11 @@
 #include <stdexcept>
 #include <vector>
 
+#include "engine/renderer/Buffer.hpp"
+#include "engine/renderer/ResourceRegistry.hpp"
+#include "engine/renderer/Shader.hpp"
+#include "engine/renderer/VertexArray.hpp"
+
 namespace engine {
 
 namespace {
@@ -124,22 +129,54 @@ void OpenGLBackend::beginFrame(int width, int height) {
 }
 
 void OpenGLBackend::execute(const std::vector<RenderEntry>& entries,
-                            const glm::mat4& viewProjection,
-                            Arena& /*scratch*/) {
+                            const glm::mat4& viewProjection, Arena& /*scratch*/,
+                            const ResourceRegistry& registry) {
   if (entries.empty()) return;
 
-  std::vector<float> vertices;
-  vertices.reserve(entries.size() * 24 * kFloatsPerVertex);
+  // --- Mesh pass: sorted; skip redundant shader/material binds ---
+  glEnable(GL_DEPTH_TEST);
+  glEnable(GL_CULL_FACE);
+  ShaderHandle boundShader = 0xFFFF;
+  MaterialHandle boundMaterial = 0xFFFF;
+  Shader* shader = nullptr;
+  for (const RenderEntry& entry : entries) {
+    const RenderCommand& cmd = *entry.command;
+    if (cmd.type != RenderCommandType::Mesh) continue;
 
+    const Material& mat = registry.material(cmd.material);
+    if (mat.shader != boundShader) {
+      shader = registry.shader(mat.shader).get();
+      shader->bind();
+      shader->setMat4("u_viewProjection", viewProjection);
+      boundShader = mat.shader;
+      boundMaterial = 0xFFFF;  // force material re-set under the new shader
+    }
+    if (cmd.material != boundMaterial) {
+      shader->setFloat4("u_baseColor", mat.baseColor);
+      boundMaterial = cmd.material;
+    }
+    shader->setMat4("u_transform", cmd.transform);
+
+    const Ref<VertexArray>& vao = registry.mesh(cmd.mesh);
+    vao->bind();
+    glDrawElements(GL_TRIANGLES,
+                   static_cast<GLsizei>(vao->indexBuffer()->count()),
+                   GL_UNSIGNED_INT, nullptr);
+  }
+  glDisable(GL_CULL_FACE);
+
+  // --- Line pass: batch Line + wireframe Cube into one draw ---
+  std::vector<float> vertices;
   for (const RenderEntry& entry : entries) {
     const RenderCommand& cmd = *entry.command;
     if (cmd.type == RenderCommandType::Line) {
       pushVertex(vertices, cmd.lineStart, cmd.color);
       pushVertex(vertices, cmd.lineEnd, cmd.color);
-    } else {
+    } else if (cmd.type == RenderCommandType::Cube) {
       expandCube(vertices, cmd);
     }
   }
+  if (vertices.empty()) return;
 
   glUseProgram(m_shader);
   const int loc = glGetUniformLocation(m_shader, "u_viewProjection");

@@ -10,13 +10,16 @@
 
 namespace engine {
 
+class ResourceRegistry;
+
 class RenderBackend {
  public:
   virtual ~RenderBackend() = default;
 
   virtual void beginFrame(int width, int height) = 0;
   virtual void execute(const std::vector<RenderEntry>& entries,
-                       const glm::mat4& viewProjection, Arena& scratch) = 0;
+                       const glm::mat4& viewProjection, Arena& scratch,
+                       const ResourceRegistry& registry) = 0;
   virtual void endFrame() = 0;
   virtual void readPixels(int x, int y, int width, int height, void* out) = 0;
 
