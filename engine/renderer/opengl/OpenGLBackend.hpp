@@ -16,9 +16,12 @@ class OpenGLBackend final : public RenderBackend {
 
   void beginPass(Framebuffer* target, const glm::vec4& clearColor,
                  bool clearDepth, int viewportW, int viewportH) override;
-  void execute(const std::vector<RenderEntry>& entries,
-               const CameraUniforms& camera, Arena& scratch,
-               const ResourceRegistry& registry) override;
+  void executeGeometry(const std::vector<RenderEntry>& entries,
+                       const CameraUniforms& camera, Arena& scratch,
+                       const ResourceRegistry& registry) override;
+  void setPointLights(int count, const PointLight* lights) override;
+  void lightingPass(uint32_t gAlbedo, uint32_t gNormal, uint32_t gWorldPos,
+                    uint32_t shadowMap) override;
   void executeShadow(const std::vector<RenderEntry>& entries,
                      const glm::mat4& lightViewProj, Arena& scratch,
                      const ResourceRegistry& registry) override;
@@ -27,10 +30,6 @@ class OpenGLBackend final : public RenderBackend {
   void readPixels(int x, int y, int width, int height, void* out) override;
 
  private:
-  unsigned int m_vao = 0;
-  unsigned int m_vbo = 0;
-  unsigned int m_shader = 0;
-  int m_vboCapacityBytes = 0;
   Ref<UniformBuffer> m_cameraUBO;
 
   unsigned int m_blitShader = 0;
@@ -40,6 +39,9 @@ class OpenGLBackend final : public RenderBackend {
   unsigned int m_shadowShader = 0;
   Ref<UniformBuffer> m_lightUBO;
   unsigned int m_shadowMap = 0;
+
+  unsigned int m_lightingShader = 0;
+  Ref<UniformBuffer> m_pointLightUBO;
 };
 
 }  // namespace engine

@@ -4,10 +4,11 @@
 
 #include <cmath>
 #include <glm/gtc/matrix_transform.hpp>
+#include <vector>
 
 #include "engine/core/Input.hpp"
-#include "engine/renderer/DebugRenderer.hpp"
 #include "engine/renderer/MeshRenderer.hpp"
+#include "engine/renderer/PointLight.hpp"
 #include "engine/renderer/ResourceRegistry.hpp"
 
 namespace game {
@@ -21,9 +22,6 @@ void BotArenaGame::onAttach() {
   m_orbitController.setOrbit(45.0f, 30.0f, 14.0f);
 
   m_topDownCamera.lookAt({0.0f, 15.0f, 0.01f}, {0.0f, 0.0f, 0.0f});
-
-  m_minimapCam.lookAt({0.0f, 15.0f, 0.01f}, {0.0f, 0.0f, 0.0f});
-  m_minimapCam.setBounds(-12.0f, 12.0f, -12.0f, 12.0f, -100.0f, 100.0f);
 }
 
 void BotArenaGame::onDetach() { spdlog::info("BotArenaGame detached"); }
@@ -110,14 +108,27 @@ void BotArenaGame::onRender(engine::Renderer& renderer, int width, int height) {
   if (m_cameraMode == CameraMode::TopDown) camera = &m_topDownCamera;
 
   renderer.setCamera(*camera);
-  renderer.setMinimapCamera(m_minimapCam);
+
+  // Animated coloured point lights on a slowly rotating ring.
+  std::vector<engine::PointLight> lights;
+  const int kLights = 16;
+  const glm::vec3 palette[4] = {{1.0f, 0.3f, 0.2f},
+                                {0.3f, 0.6f, 1.0f},
+                                {0.4f, 1.0f, 0.4f},
+                                {1.0f, 0.9f, 0.3f}};
+  for (int i = 0; i < kLights; ++i) {
+    engine::PointLight pl;
+    pl.positionRadius = glm::vec4(
+        engine::pointLightRing(i, kLights, m_time * 0.5f, 6.0f, 1.5f), 5.0f);
+    pl.color = glm::vec4(palette[i % 4], 3.0f);
+    lights.push_back(pl);
+  }
+  renderer.setPointLights(lights);
 
   const engine::MeshHandle cube = renderer.unitCubeMesh();
 
-  // Serial: arena walls (main lane) + grid.
-  engine::DebugRenderer debug(renderer.queue());
+  // Serial: arena walls + ground (main lane).
   engine::MeshRenderer walls(renderer.queue(), renderer.registry(), *camera);
-  debug.drawGrid(10.0f, 1.0f, {0.25f, 0.25f, 0.25f, 1.0f});
   auto wall = [&](const glm::vec3& center, const glm::vec3& size) {
     glm::mat4 t = glm::translate(glm::mat4(1.0f), center);
     t = glm::scale(t, size * 0.5f);

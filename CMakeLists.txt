@@ -88,6 +88,7 @@ add_executable(bot_arena_tests
     tests/test_camera_uniforms.cpp
     tests/test_minimap_rect.cpp
     tests/test_light_view_proj.cpp
+    tests/test_point_light_ring.cpp
 
     engine/core/Arena.cpp
     engine/core/JobSystem.cpp

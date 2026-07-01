@@ -3,6 +3,8 @@
 #include <glad/glad.h>
 #include <spdlog/spdlog.h>
 
+#include <vector>
+
 namespace engine {
 
 OpenGLFramebuffer::OpenGLFramebuffer(const FramebufferSpec& spec)
@@ -15,10 +17,12 @@ OpenGLFramebuffer::~OpenGLFramebuffer() { destroy(); }
 void OpenGLFramebuffer::destroy() {
   if (m_rendererID) {
     glDeleteFramebuffers(1, &m_rendererID);
-    glDeleteTextures(1, &m_color);
-    glDeleteTextures(1, &m_depth);
+    if (!m_colors.empty()) {
+      glDeleteTextures(static_cast<GLsizei>(m_colors.size()), m_colors.data());
+    }
+    if (m_depth) glDeleteTextures(1, &m_depth);
     m_rendererID = 0;
-    m_color = 0;
+    m_colors.clear();
     m_depth = 0;
   }
 }
@@ -47,13 +51,30 @@ void OpenGLFramebuffer::invalidate() {
     glNamedFramebufferDrawBuffer(m_rendererID, GL_NONE);
     glNamedFramebufferReadBuffer(m_rendererID, GL_NONE);
   } else {
-    glCreateTextures(GL_TEXTURE_2D, 1, &m_color);
-    glTextureStorage2D(m_color, 1, m_spec.hdr ? GL_RGBA16F : GL_RGBA8, w, h);
-    glTextureParameteri(m_color, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-    glTextureParameteri(m_color, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-    glTextureParameteri(m_color, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-    glTextureParameteri(m_color, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-    glNamedFramebufferTexture(m_rendererID, GL_COLOR_ATTACHMENT0, m_color, 0);
+    std::vector<FramebufferFormat> formats = m_spec.colorFormats;
+    if (formats.empty()) {
+      formats.push_back(m_spec.hdr ? FramebufferFormat::RGBA16F
+                                   : FramebufferFormat::RGBA8);
+    }
+    m_colors.resize(formats.size());
+    glCreateTextures(GL_TEXTURE_2D, static_cast<GLsizei>(m_colors.size()),
+                     m_colors.data());
+    std::vector<GLenum> drawBuffers;
+    for (size_t i = 0; i < formats.size(); ++i) {
+      const GLenum internal =
+          formats[i] == FramebufferFormat::RGBA16F ? GL_RGBA16F : GL_RGBA8;
+      glTextureStorage2D(m_colors[i], 1, internal, w, h);
+      glTextureParameteri(m_colors[i], GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+      glTextureParameteri(m_colors[i], GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+      glTextureParameteri(m_colors[i], GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+      glTextureParameteri(m_colors[i], GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+      const GLenum attachment = GL_COLOR_ATTACHMENT0 + static_cast<GLenum>(i);
+      glNamedFramebufferTexture(m_rendererID, attachment, m_colors[i], 0);
+      drawBuffers.push_back(attachment);
+    }
+    glNamedFramebufferDrawBuffers(m_rendererID,
+                                  static_cast<GLsizei>(drawBuffers.size()),
+                                  drawBuffers.data());
 
     glCreateTextures(GL_TEXTURE_2D, 1, &m_depth);
     glTextureStorage2D(m_depth, 1, GL_DEPTH24_STENCIL8, w, h);

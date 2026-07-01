@@ -9,6 +9,7 @@
 #include "engine/core/Base.hpp"
 #include "engine/renderer/CameraUniforms.hpp"
 #include "engine/renderer/LightUniforms.hpp"
+#include "engine/renderer/PointLight.hpp"
 #include "engine/renderer/RenderQueue.hpp"
 
 namespace engine {
@@ -23,9 +24,15 @@ class RenderBackend {
   // Bind `target` (null = default framebuffer + the given viewport) and clear.
   virtual void beginPass(Framebuffer* target, const glm::vec4& clearColor,
                          bool clearDepth, int viewportW, int viewportH) = 0;
-  virtual void execute(const std::vector<RenderEntry>& entries,
-                       const CameraUniforms& camera, Arena& scratch,
-                       const ResourceRegistry& registry) = 0;
+  // Render meshes into the bound MRT G-buffer (albedo/normal/world-pos).
+  virtual void executeGeometry(const std::vector<RenderEntry>& entries,
+                               const CameraUniforms& camera, Arena& scratch,
+                               const ResourceRegistry& registry) = 0;
+  // Upload the point-light block (binding 2); count is clamped to 32.
+  virtual void setPointLights(int count, const PointLight* lights) = 0;
+  // Fullscreen deferred shade: read the G-buffer + shadow map, write HDR.
+  virtual void lightingPass(uint32_t gAlbedo, uint32_t gNormal,
+                            uint32_t gWorldPos, uint32_t shadowMap) = 0;
   // Render mesh depth from the light's POV into the bound depth target.
   virtual void executeShadow(const std::vector<RenderEntry>& entries,
                              const glm::mat4& lightViewProj, Arena& scratch,
