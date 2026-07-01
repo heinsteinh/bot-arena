@@ -21,7 +21,8 @@ Application::Application() {
 
   m_window = std::move(sdlWindow);
   m_context = std::make_unique<SdlOpenGLContext>(*rawSdlWindow);
-  m_renderer = std::make_unique<Renderer>();
+  m_jobs = std::make_unique<JobSystem>();
+  m_renderer = std::make_unique<Renderer>(*m_jobs);
 
   spdlog::info("Application initialized");
 }
