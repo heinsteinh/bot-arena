@@ -30,6 +30,9 @@ add_executable(bot_arena
     engine/platform/sdl/SdlOpenGLContext.cpp
     
     engine/renderer/opengl/OpenGLRenderer.cpp
+    engine/renderer/opengl/OpenGLBackend.cpp
+
+    engine/renderer/RenderBackend.cpp
 
     game/BotArenaGame.cpp
 )
