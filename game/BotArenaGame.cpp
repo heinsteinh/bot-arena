@@ -86,6 +86,8 @@ void BotArenaGame::onRender(engine::Renderer& renderer, int width, int height) {
     const engine::ShaderHandle s = renderer.meshShader();
     m_wallMat =
         renderer.registry().registerMaterial({{0.7f, 0.7f, 0.7f, 1.0f}, s});
+    m_groundMat =
+        renderer.registry().registerMaterial({{0.35f, 0.35f, 0.38f, 1.0f}, s});
     m_swarmMats[0] =
         renderer.registry().registerMaterial({{0.9f, 0.3f, 0.2f, 1.0f}, s});
     m_swarmMats[1] =
@@ -125,6 +127,10 @@ void BotArenaGame::onRender(engine::Renderer& renderer, int width, int height) {
   wall({0.0f, 0.5f, 5.0f}, {10.0f, 1.0f, 0.25f});
   wall({-5.0f, 0.5f, 0.0f}, {0.25f, 1.0f, 10.0f});
   wall({5.0f, 0.5f, 0.0f}, {0.25f, 1.0f, 10.0f});
+
+  glm::mat4 ground = glm::translate(glm::mat4(1.0f), {0.0f, -0.05f, 0.0f});
+  ground = glm::scale(ground, {20.0f, 0.05f, 20.0f});
+  walls.submit(cube, m_groundMat, ground);
 
   // Parallel: the bot swarm.
   const float time = m_time;
