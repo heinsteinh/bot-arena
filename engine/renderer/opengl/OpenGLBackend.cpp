@@ -10,6 +10,7 @@
 #include "engine/renderer/Buffer.hpp"
 #include "engine/renderer/CameraUniforms.hpp"
 #include "engine/renderer/Framebuffer.hpp"
+#include "engine/renderer/LightUniforms.hpp"
 #include "engine/renderer/ResourceRegistry.hpp"
 #include "engine/renderer/Shader.hpp"
 #include "engine/renderer/UniformBuffer.hpp"
@@ -118,6 +119,38 @@ unsigned int createBlitProgram() {
   return program;
 }
 
+unsigned int createShadowProgram() {
+  constexpr const char* vs = R"(
+    #version 460 core
+    layout(location = 0) in vec3 a_position;
+    uniform mat4 u_lightViewProj;
+    uniform mat4 u_transform;
+    void main() {
+      gl_Position = u_lightViewProj * u_transform * vec4(a_position, 1.0);
+    }
+  )";
+  constexpr const char* fs = R"(
+    #version 460 core
+    void main() {}
+  )";
+  const unsigned int v = compileShader(GL_VERTEX_SHADER, vs);
+  const unsigned int f = compileShader(GL_FRAGMENT_SHADER, fs);
+  const unsigned int program = glCreateProgram();
+  glAttachShader(program, v);
+  glAttachShader(program, f);
+  glLinkProgram(program);
+  glDeleteShader(v);
+  glDeleteShader(f);
+  int ok = 0;
+  glGetProgramiv(program, GL_LINK_STATUS, &ok);
+  if (!ok) {
+    char log[1024];
+    glGetProgramInfoLog(program, sizeof(log), nullptr, log);
+    throw std::runtime_error(log);
+  }
+  return program;
+}
+
 // Appends one vertex (pos + color) to out.
 void pushVertex(std::vector<float>& out, const glm::vec3& p,
                 const glm::vec4& c) {
@@ -179,11 +212,15 @@ OpenGLBackend::OpenGLBackend() {
   glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, sizeof(float) * 2,
                         reinterpret_cast<void*>(0));
   glBindVertexArray(0);
+
+  m_shadowShader = createShadowProgram();
+  m_lightUBO = UniformBuffer::Create(sizeof(LightUniforms), 1);
 }
 
 OpenGLBackend::~OpenGLBackend() {
   if (m_shader) glDeleteProgram(m_shader);
   if (m_blitShader) glDeleteProgram(m_blitShader);
+  if (m_shadowShader) glDeleteProgram(m_shadowShader);
   if (m_vbo) glDeleteBuffers(1, &m_vbo);
   if (m_vao) glDeleteVertexArrays(1, &m_vao);
   if (m_quadVbo) glDeleteBuffers(1, &m_quadVbo);
@@ -207,6 +244,36 @@ void OpenGLBackend::beginPass(Framebuffer* target, const glm::vec4& clearColor,
   }
 }
 
+void OpenGLBackend::executeShadow(const std::vector<RenderEntry>& entries,
+                                  const glm::mat4& lightViewProj,
+                                  Arena& /*scratch*/,
+                                  const ResourceRegistry& registry) {
+  glEnable(GL_DEPTH_TEST);
+  glEnable(GL_CULL_FACE);
+  glUseProgram(m_shadowShader);
+  glUniformMatrix4fv(glGetUniformLocation(m_shadowShader, "u_lightViewProj"), 1,
+                     GL_FALSE, glm::value_ptr(lightViewProj));
+  const int transformLoc = glGetUniformLocation(m_shadowShader, "u_transform");
+  for (const RenderEntry& entry : entries) {
+    const RenderCommand& cmd = *entry.command;
+    if (cmd.type != RenderCommandType::Mesh) continue;
+    glUniformMatrix4fv(transformLoc, 1, GL_FALSE,
+                       glm::value_ptr(cmd.transform));
+    const Ref<VertexArray>& vao = registry.mesh(cmd.mesh);
+    vao->bind();
+    glDrawElements(GL_TRIANGLES,
+                   static_cast<GLsizei>(vao->indexBuffer()->count()),
+                   GL_UNSIGNED_INT, nullptr);
+  }
+  glDisable(GL_CULL_FACE);
+}
+
+void OpenGLBackend::setLight(const LightUniforms& light,
+                             uint32_t shadowMapTexture) {
+  m_lightUBO->setData(&light, sizeof(LightUniforms));
+  m_shadowMap = shadowMapTexture;
+}
+
 void OpenGLBackend::execute(const std::vector<RenderEntry>& entries,
                             const CameraUniforms& camera, Arena& /*scratch*/,
                             const ResourceRegistry& registry) {
@@ -216,6 +283,7 @@ void OpenGLBackend::execute(const std::vector<RenderEntry>& entries,
   // --- Mesh pass: sorted; skip redundant shader/material binds ---
   glEnable(GL_DEPTH_TEST);
   glEnable(GL_CULL_FACE);
+  glBindTextureUnit(1, m_shadowMap);
   ShaderHandle boundShader = 0xFFFF;
   MaterialHandle boundMaterial = 0xFFFF;
   Shader* shader = nullptr;
@@ -227,6 +295,7 @@ void OpenGLBackend::execute(const std::vector<RenderEntry>& entries,
     if (mat.shader != boundShader) {
       shader = registry.shader(mat.shader).get();
       shader->bind();
+      shader->setInt("u_shadowMap", 1);
       boundShader = mat.shader;
       boundMaterial = 0xFFFF;  // force material re-set under the new shader
     }
