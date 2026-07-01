@@ -5,6 +5,7 @@
 #include <cmath>
 
 #include "engine/core/Input.hpp"
+#include "engine/renderer/DebugRenderer.hpp"
 
 namespace game {
 
@@ -65,49 +66,38 @@ void BotArenaGame::onRender(engine::Renderer& renderer, int width, int height) {
   const float aspect =
       height > 0 ? static_cast<float>(width) / static_cast<float>(height)
                  : 1.0f;
-
   m_flyController.resize(aspect);
   m_orbitController.resize(aspect);
   m_topDownCamera.setBounds(-10.0f * aspect, 10.0f * aspect, -10.0f, 10.0f,
                             -100.0f, 100.0f);
-  m_uiCamera.setViewport(static_cast<float>(width), static_cast<float>(height));
 
-  switch (m_cameraMode) {
-    case CameraMode::Fly:
-      renderer.setCamera(m_flyController.camera());
-      break;
-    case CameraMode::Orbit:
-      renderer.setCamera(m_orbitController.camera());
-      break;
-    case CameraMode::TopDown:
-      renderer.setCamera(m_topDownCamera);
-      break;
-  }
+  const engine::Camera* camera = &m_flyController.camera();
+  if (m_cameraMode == CameraMode::Orbit) camera = &m_orbitController.camera();
+  if (m_cameraMode == CameraMode::TopDown) camera = &m_topDownCamera;
 
-  renderer.drawGrid(10.0f, 1.0f, {0.25f, 0.25f, 0.25f, 1.0f});
+  renderer.setViewProjection(camera->viewProjection());
 
-  renderer.drawCube({0.0f, 0.5f, -5.0f}, {10.0f, 1.0f, 0.25f},
-                    {0.7f, 0.7f, 0.7f, 1.0f});
-  renderer.drawCube({0.0f, 0.5f, 5.0f}, {10.0f, 1.0f, 0.25f},
-                    {0.7f, 0.7f, 0.7f, 1.0f});
-  renderer.drawCube({-5.0f, 0.5f, 0.0f}, {0.25f, 1.0f, 10.0f},
-                    {0.7f, 0.7f, 0.7f, 1.0f});
-  renderer.drawCube({5.0f, 0.5f, 0.0f}, {0.25f, 1.0f, 10.0f},
-                    {0.7f, 0.7f, 0.7f, 1.0f});
+  engine::DebugRenderer debug(renderer.queue());
 
-  renderer.drawCube({2.0f, 0.5f, 1.0f}, {1.0f, 1.0f, 1.0f},
-                    {0.2f, 0.6f, 1.0f, 1.0f});
-  renderer.drawCube({-2.0f, 0.5f, -2.0f}, {1.5f, 1.0f, 1.5f},
-                    {0.2f, 0.6f, 1.0f, 1.0f});
+  debug.drawGrid(10.0f, 1.0f, {0.25f, 0.25f, 0.25f, 1.0f});
 
-  renderer.drawCube(m_botPosition, {0.5f, 1.0f, 0.5f},
-                    {1.0f, 0.2f, 0.2f, 1.0f});
+  debug.drawCube({0.0f, 0.5f, -5.0f}, {10.0f, 1.0f, 0.25f},
+                 {0.7f, 0.7f, 0.7f, 1.0f});
+  debug.drawCube({0.0f, 0.5f, 5.0f}, {10.0f, 1.0f, 0.25f},
+                 {0.7f, 0.7f, 0.7f, 1.0f});
+  debug.drawCube({-5.0f, 0.5f, 0.0f}, {0.25f, 1.0f, 10.0f},
+                 {0.7f, 0.7f, 0.7f, 1.0f});
+  debug.drawCube({5.0f, 0.5f, 0.0f}, {0.25f, 1.0f, 10.0f},
+                 {0.7f, 0.7f, 0.7f, 1.0f});
 
-  renderer.drawLine(m_botPosition, {0.0f, 0.5f, 0.0f},
-                    {1.0f, 1.0f, 0.0f, 1.0f});
+  debug.drawCube({2.0f, 0.5f, 1.0f}, {1.0f, 1.0f, 1.0f},
+                 {0.2f, 0.6f, 1.0f, 1.0f});
+  debug.drawCube({-2.0f, 0.5f, -2.0f}, {1.5f, 1.0f, 1.5f},
+                 {0.2f, 0.6f, 1.0f, 1.0f});
 
-  // UI camera is ready, but text rendering is not implemented yet.
-  // Next renderer step: drawText() using ImGui first, then later font atlas.
+  debug.drawCube(m_botPosition, {0.5f, 1.0f, 0.5f}, {1.0f, 0.2f, 0.2f, 1.0f});
+
+  debug.drawLine(m_botPosition, {0.0f, 0.5f, 0.0f}, {1.0f, 1.0f, 0.0f, 1.0f});
 }
 
 }  // namespace game

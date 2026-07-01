@@ -23,13 +23,13 @@ add_executable(bot_arena
     src/main.cpp
 
     engine/core/Application.cpp
+    engine/core/Arena.cpp
     engine/core/Time.cpp
     engine/core/Input.cpp
 
     engine/platform/sdl/SdlWindow.cpp
     engine/platform/sdl/SdlOpenGLContext.cpp
-    
-    engine/renderer/opengl/OpenGLRenderer.cpp
+
     engine/renderer/opengl/OpenGLBackend.cpp
 
     engine/renderer/RenderBackend.cpp
