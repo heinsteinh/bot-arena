@@ -14,6 +14,8 @@ class VertexArray;
 
 struct Material {
   glm::vec4 baseColor{1.0f};
+  float metallic = 0.0f;
+  float roughness = 0.5f;
   ShaderHandle shader = 0;
 };
 

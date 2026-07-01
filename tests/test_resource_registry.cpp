@@ -24,6 +24,21 @@ TEST_CASE("registerMaterial returns increasing handles and stores value",
   REQUIRE(reg.material(h1).baseColor.b == 1.0f);
 }
 
+TEST_CASE("registerMaterial stores metallic and roughness", "[registry]") {
+  ResourceRegistry reg;
+  Material def;
+  REQUIRE(def.metallic == 0.0f);
+  REQUIRE(def.roughness == 0.5f);
+
+  Material metal;
+  metal.baseColor = {1.0f, 0.8f, 0.3f, 1.0f};
+  metal.metallic = 1.0f;
+  metal.roughness = 0.2f;
+  const engine::MaterialHandle h = reg.registerMaterial(metal);
+  REQUIRE(reg.material(h).metallic == 1.0f);
+  REQUIRE(reg.material(h).roughness == 0.2f);
+}
+
 TEST_CASE("registerMesh/Shader hand out stable increasing handles",
           "[registry]") {
   ResourceRegistry reg;
