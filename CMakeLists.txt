@@ -18,6 +18,7 @@ find_package(yaml-cpp CONFIG REQUIRED)
 find_package(imgui CONFIG REQUIRED)
 find_package(Stb REQUIRED)
 find_package(Catch2 3 CONFIG REQUIRED)
+find_package(Threads REQUIRED)
 
 add_executable(bot_arena
     src/main.cpp
@@ -26,6 +27,7 @@ add_executable(bot_arena
     engine/core/Arena.cpp
     engine/core/Time.cpp
     engine/core/Input.cpp
+    engine/core/JobSystem.cpp
 
     engine/platform/sdl/SdlWindow.cpp
     engine/platform/sdl/SdlOpenGLContext.cpp
@@ -65,6 +67,7 @@ target_link_libraries(bot_arena
         spdlog::spdlog
         yaml-cpp::yaml-cpp
         imgui::imgui
+        Threads::Threads
 )
 
 enable_testing()
@@ -77,8 +80,10 @@ add_executable(bot_arena_tests
     tests/test_buffer_layout.cpp
     tests/test_shader_parser.cpp
     tests/test_mesh_renderer.cpp
+    tests/test_job_system.cpp
 
     engine/core/Arena.cpp
+    engine/core/JobSystem.cpp
     engine/renderer/RenderQueue.cpp
     engine/renderer/ResourceRegistry.cpp
     engine/renderer/MeshRenderer.cpp
@@ -89,7 +94,7 @@ target_include_directories(bot_arena_tests
 )
 
 target_link_libraries(bot_arena_tests
-    PRIVATE glm::glm Catch2::Catch2WithMain
+    PRIVATE glm::glm Catch2::Catch2WithMain Threads::Threads
 )
 
 add_test(NAME bot_arena_tests COMMAND bot_arena_tests)
