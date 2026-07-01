@@ -35,6 +35,7 @@ add_executable(bot_arena
     engine/renderer/RenderBackend.cpp
     engine/renderer/RenderQueue.cpp
     engine/renderer/Renderer.cpp
+    engine/renderer/DebugRenderer.cpp
 
     game/BotArenaGame.cpp
 )
