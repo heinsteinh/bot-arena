@@ -59,21 +59,36 @@ void BotArenaGame::onUpdate(float dt) {
     case CameraMode::TopDown:
       break;
   }
-
-  m_botPosition.x = std::sin(m_time) * 2.0f;
-  m_botPosition.y = 0.5f;
-  m_botPosition.z = std::cos(m_time) * 2.0f;
 }
+
+namespace {
+
+glm::mat4 botTransform(std::size_t index, float time) {
+  constexpr int kSide = 46;  // ceil(sqrt(2048))
+  const float spacing = 14.0f / kSide;
+  const int row = static_cast<int>(index) / kSide;
+  const int col = static_cast<int>(index) % kSide;
+  const float x = (col - kSide / 2) * spacing;
+  const float z = (row - kSide / 2) * spacing;
+  const float y =
+      0.4f + 0.25f * std::sin(time * 2.0f + static_cast<float>(index) * 0.15f);
+  glm::mat4 t = glm::translate(glm::mat4(1.0f), {x, y, z});
+  return glm::scale(t, glm::vec3(0.15f));  // unit cube [-1,1] -> ~0.3 extent
+}
+
+}  // namespace
 
 void BotArenaGame::onRender(engine::Renderer& renderer, int width, int height) {
   if (!m_resourcesReady) {
     const engine::ShaderHandle s = renderer.meshShader();
     m_wallMat =
         renderer.registry().registerMaterial({{0.7f, 0.7f, 0.7f, 1.0f}, s});
-    m_obstacleMat =
-        renderer.registry().registerMaterial({{0.2f, 0.6f, 1.0f, 1.0f}, s});
-    m_botMat =
-        renderer.registry().registerMaterial({{1.0f, 0.2f, 0.2f, 1.0f}, s});
+    m_swarmMats[0] =
+        renderer.registry().registerMaterial({{0.9f, 0.3f, 0.2f, 1.0f}, s});
+    m_swarmMats[1] =
+        renderer.registry().registerMaterial({{0.2f, 0.7f, 0.9f, 1.0f}, s});
+    m_swarmMats[2] =
+        renderer.registry().registerMaterial({{0.5f, 0.9f, 0.3f, 1.0f}, s});
     m_resourcesReady = true;
   }
 
@@ -91,31 +106,32 @@ void BotArenaGame::onRender(engine::Renderer& renderer, int width, int height) {
 
   renderer.setViewProjection(camera->viewProjection());
 
-  engine::MeshRenderer mesh(renderer.queue(), renderer.registry(), *camera);
-  engine::DebugRenderer debug(renderer.queue());
-
   const engine::MeshHandle cube = renderer.unitCubeMesh();
-  auto box = [&](const glm::vec3& center, const glm::vec3& size,
-                 engine::MaterialHandle mat) {
-    // Unit cube spans [-1,1]; scale by half-size to get the requested extents.
+
+  // Serial: arena walls (main lane) + grid.
+  engine::DebugRenderer debug(renderer.queue());
+  engine::MeshRenderer walls(renderer.queue(), renderer.registry(), *camera);
+  debug.drawGrid(10.0f, 1.0f, {0.25f, 0.25f, 0.25f, 1.0f});
+  auto wall = [&](const glm::vec3& center, const glm::vec3& size) {
     glm::mat4 t = glm::translate(glm::mat4(1.0f), center);
     t = glm::scale(t, size * 0.5f);
-    mesh.submit(cube, mat, t);
+    walls.submit(cube, m_wallMat, t);
   };
+  wall({0.0f, 0.5f, -5.0f}, {10.0f, 1.0f, 0.25f});
+  wall({0.0f, 0.5f, 5.0f}, {10.0f, 1.0f, 0.25f});
+  wall({-5.0f, 0.5f, 0.0f}, {0.25f, 1.0f, 10.0f});
+  wall({5.0f, 0.5f, 0.0f}, {0.25f, 1.0f, 10.0f});
 
-  debug.drawGrid(10.0f, 1.0f, {0.25f, 0.25f, 0.25f, 1.0f});
-
-  box({0.0f, 0.5f, -5.0f}, {10.0f, 1.0f, 0.25f}, m_wallMat);
-  box({0.0f, 0.5f, 5.0f}, {10.0f, 1.0f, 0.25f}, m_wallMat);
-  box({-5.0f, 0.5f, 0.0f}, {0.25f, 1.0f, 10.0f}, m_wallMat);
-  box({5.0f, 0.5f, 0.0f}, {0.25f, 1.0f, 10.0f}, m_wallMat);
-
-  box({2.0f, 0.5f, 1.0f}, {1.0f, 1.0f, 1.0f}, m_obstacleMat);
-  box({-2.0f, 0.5f, -2.0f}, {1.5f, 1.0f, 1.5f}, m_obstacleMat);
-
-  box(m_botPosition, {0.5f, 1.0f, 0.5f}, m_botMat);
-
-  debug.drawLine(m_botPosition, {0.0f, 0.5f, 0.0f}, {1.0f, 1.0f, 0.0f, 1.0f});
+  // Parallel: the bot swarm.
+  const float time = m_time;
+  renderer.generateMeshes(kBotCount, [this, &renderer, camera, cube, time](
+                                         engine::RenderQueue& q,
+                                         std::size_t begin, std::size_t end) {
+    engine::MeshRenderer mesh(q, renderer.registry(), *camera);
+    for (std::size_t i = begin; i < end; ++i) {
+      mesh.submit(cube, m_swarmMats[i % 3], botTransform(i, time));
+    }
+  });
 }
 
 }  // namespace game

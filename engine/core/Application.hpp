@@ -5,6 +5,7 @@
 #include <vector>
 
 #include "engine/core/GraphicsContext.hpp"
+#include "engine/core/JobSystem.hpp"
 #include "engine/core/Layer.hpp"
 #include "engine/core/Window.hpp"
 #include "engine/renderer/Renderer.hpp"
@@ -22,6 +23,7 @@ class Application {
  private:
   std::unique_ptr<Window> m_window;
   std::unique_ptr<GraphicsContext> m_context;
+  std::unique_ptr<JobSystem> m_jobs;
   std::unique_ptr<Renderer> m_renderer;
 
   std::vector<std::unique_ptr<Layer>> m_layers;

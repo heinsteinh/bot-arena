@@ -5,6 +5,7 @@
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include <stb_image_write.h>
 
+#include <algorithm>
 #include <vector>
 
 #include "engine/core/AssetPath.hpp"
@@ -14,10 +15,12 @@
 
 namespace engine {
 
-Renderer::Renderer()
-    : m_arena(kArenaBytes),
-      m_queue(m_arena),
-      m_backend(RenderBackend::Create()) {
+Renderer::Renderer(JobSystem& jobs)
+    : m_jobs(jobs), m_backend(RenderBackend::Create()) {
+  m_lanes.reserve(jobs.workerCount());
+  for (size_t i = 0; i < jobs.workerCount(); ++i) {
+    m_lanes.push_back(CreateScope<WorkerBuffer>(kLaneArenaBytes));
+  }
   initBuiltins();
 }
 
@@ -70,14 +73,29 @@ void Renderer::initBuiltins() {
 void Renderer::beginFrame(int width, int height) {
   m_width = width;
   m_height = height;
-  m_arena.reset();
-  m_queue.clear();
+  for (Scope<WorkerBuffer>& lane : m_lanes) {
+    lane->arena.reset();
+    lane->queue.clear();
+  }
   m_backend->beginFrame(width, height);
 }
 
+void Renderer::generateMeshes(
+    size_t count, const std::function<void(RenderQueue&, size_t, size_t)>& fn) {
+  m_jobs.parallelFor(count, kBatchSize,
+                     [this, &fn](size_t begin, size_t end, size_t lane) {
+                       fn(m_lanes[lane]->queue, begin, end);
+                     });
+}
+
 void Renderer::endFrame() {
-  m_queue.sort();
-  m_backend->execute(m_queue.entries(), m_viewProjection, m_arena, m_registry);
+  m_merged.clear();
+  mergeLaneEntries(m_lanes, m_merged);
+  std::stable_sort(m_merged.begin(), m_merged.end(),
+                   [](const RenderEntry& a, const RenderEntry& b) {
+                     return a.sortKey < b.sortKey;
+                   });
+  m_backend->execute(m_merged, m_viewProjection, m_lanes[0]->arena, m_registry);
   m_backend->endFrame();
 }
 
