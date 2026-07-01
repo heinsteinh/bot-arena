@@ -2,22 +2,24 @@
 #define ENGINE_RENDERER_OPENGL_OPENGLBACKEND_HPP
 
 #include "engine/core/Base.hpp"
-#include "engine/renderer/Framebuffer.hpp"
 #include "engine/renderer/RenderBackend.hpp"
 #include "engine/renderer/UniformBuffer.hpp"
 
 namespace engine {
+
+class Framebuffer;
 
 class OpenGLBackend final : public RenderBackend {
  public:
   OpenGLBackend();
   ~OpenGLBackend() override;
 
-  void beginFrame(int width, int height) override;
+  void beginPass(Framebuffer* target, const glm::vec4& clearColor,
+                 bool clearDepth, int viewportW, int viewportH) override;
   void execute(const std::vector<RenderEntry>& entries,
                const CameraUniforms& camera, Arena& scratch,
                const ResourceRegistry& registry) override;
-  void endFrame() override;
+  void blit(uint32_t sourceColorTexture, const glm::vec4& dstRectNDC) override;
   void readPixels(int x, int y, int width, int height, void* out) override;
 
  private:
@@ -27,12 +29,9 @@ class OpenGLBackend final : public RenderBackend {
   int m_vboCapacityBytes = 0;
   Ref<UniformBuffer> m_cameraUBO;
 
-  Ref<Framebuffer> m_sceneFBO;
-  unsigned int m_compositeShader = 0;
-  unsigned int m_fsVao = 0;
-  unsigned int m_fsVbo = 0;
-  int m_width = 0;
-  int m_height = 0;
+  unsigned int m_blitShader = 0;
+  unsigned int m_quadVao = 0;
+  unsigned int m_quadVbo = 0;
 };
 
 }  // namespace engine

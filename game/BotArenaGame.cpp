@@ -21,6 +21,9 @@ void BotArenaGame::onAttach() {
   m_orbitController.setOrbit(45.0f, 30.0f, 14.0f);
 
   m_topDownCamera.lookAt({0.0f, 15.0f, 0.01f}, {0.0f, 0.0f, 0.0f});
+
+  m_minimapCam.lookAt({0.0f, 15.0f, 0.01f}, {0.0f, 0.0f, 0.0f});
+  m_minimapCam.setBounds(-12.0f, 12.0f, -12.0f, 12.0f, -100.0f, 100.0f);
 }
 
 void BotArenaGame::onDetach() { spdlog::info("BotArenaGame detached"); }
@@ -105,6 +108,7 @@ void BotArenaGame::onRender(engine::Renderer& renderer, int width, int height) {
   if (m_cameraMode == CameraMode::TopDown) camera = &m_topDownCamera;
 
   renderer.setCamera(*camera);
+  renderer.setMinimapCamera(m_minimapCam);
 
   const engine::MeshHandle cube = renderer.unitCubeMesh();
 
