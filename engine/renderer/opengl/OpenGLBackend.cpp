@@ -9,6 +9,7 @@
 
 #include "engine/renderer/Buffer.hpp"
 #include "engine/renderer/CameraUniforms.hpp"
+#include "engine/renderer/Framebuffer.hpp"
 #include "engine/renderer/ResourceRegistry.hpp"
 #include "engine/renderer/Shader.hpp"
 #include "engine/renderer/UniformBuffer.hpp"
@@ -75,15 +76,16 @@ unsigned int createProgram() {
   return program;
 }
 
-unsigned int createCompositeProgram() {
+unsigned int createBlitProgram() {
   constexpr const char* vs = R"(
     #version 460 core
-    layout(location = 0) in vec2 a_position;
-    layout(location = 1) in vec2 a_uv;
+    layout(location = 0) in vec2 a_position;   // unit quad [0,1]^2
+    uniform vec4 u_rect;                        // {x0,y0,x1,y1} in NDC
     out vec2 v_uv;
     void main() {
-      v_uv = a_uv;
-      gl_Position = vec4(a_position, 0.0, 1.0);
+      v_uv = a_position;
+      vec2 ndc = mix(u_rect.xy, u_rect.zw, a_position);
+      gl_Position = vec4(ndc, 0.0, 1.0);
     }
   )";
   constexpr const char* fs = R"(
@@ -164,44 +166,45 @@ OpenGLBackend::OpenGLBackend() {
 
   m_cameraUBO = UniformBuffer::Create(sizeof(CameraUniforms), 0);
 
-  m_sceneFBO = Framebuffer::Create(FramebufferSpec{});
-  m_compositeShader = createCompositeProgram();
+  m_blitShader = createBlitProgram();
 
-  // Fullscreen triangle: position(2) + uv(2).
-  const float fs[] = {-1.0f, -1.0f, 0.0f,  0.0f, 3.0f, -1.0f,
-                      2.0f,  0.0f,  -1.0f, 3.0f, 0.0f, 2.0f};
-  glCreateVertexArrays(1, &m_fsVao);
-  glCreateBuffers(1, &m_fsVbo);
-  glBindVertexArray(m_fsVao);
-  glBindBuffer(GL_ARRAY_BUFFER, m_fsVbo);
-  glBufferData(GL_ARRAY_BUFFER, sizeof(fs), fs, GL_STATIC_DRAW);
+  // Unit quad [0,1]^2 as a triangle strip: (0,0),(1,0),(0,1),(1,1).
+  const float quad[] = {0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f};
+  glCreateVertexArrays(1, &m_quadVao);
+  glCreateBuffers(1, &m_quadVbo);
+  glBindVertexArray(m_quadVao);
+  glBindBuffer(GL_ARRAY_BUFFER, m_quadVbo);
+  glBufferData(GL_ARRAY_BUFFER, sizeof(quad), quad, GL_STATIC_DRAW);
   glEnableVertexAttribArray(0);
-  glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, sizeof(float) * 4,
+  glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, sizeof(float) * 2,
                         reinterpret_cast<void*>(0));
-  glEnableVertexAttribArray(1);
-  glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, sizeof(float) * 4,
-                        reinterpret_cast<void*>(sizeof(float) * 2));
   glBindVertexArray(0);
 }
 
 OpenGLBackend::~OpenGLBackend() {
   if (m_shader) glDeleteProgram(m_shader);
-  if (m_compositeShader) glDeleteProgram(m_compositeShader);
+  if (m_blitShader) glDeleteProgram(m_blitShader);
   if (m_vbo) glDeleteBuffers(1, &m_vbo);
   if (m_vao) glDeleteVertexArrays(1, &m_vao);
-  if (m_fsVbo) glDeleteBuffers(1, &m_fsVbo);
-  if (m_fsVao) glDeleteVertexArrays(1, &m_fsVao);
+  if (m_quadVbo) glDeleteBuffers(1, &m_quadVbo);
+  if (m_quadVao) glDeleteVertexArrays(1, &m_quadVao);
 }
 
-void OpenGLBackend::beginFrame(int width, int height) {
-  m_width = width;
-  m_height = height;
-  m_sceneFBO->resize(static_cast<uint32_t>(width),
-                     static_cast<uint32_t>(height));
-  m_sceneFBO->bind();
-  glEnable(GL_DEPTH_TEST);
-  glClearColor(0.08f, 0.09f, 0.11f, 1.0f);
-  glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+void OpenGLBackend::beginPass(Framebuffer* target, const glm::vec4& clearColor,
+                              bool clearDepth, int viewportW, int viewportH) {
+  if (target) {
+    target->bind();  // binds the FBO and sets its own viewport
+  } else {
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    glViewport(0, 0, viewportW, viewportH);
+  }
+  glClearColor(clearColor.r, clearColor.g, clearColor.b, clearColor.a);
+  if (clearDepth) {
+    glEnable(GL_DEPTH_TEST);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+  } else {
+    glClear(GL_COLOR_BUFFER_BIT);
+  }
 }
 
 void OpenGLBackend::execute(const std::vector<RenderEntry>& entries,
@@ -271,20 +274,17 @@ void OpenGLBackend::execute(const std::vector<RenderEntry>& entries,
   glBindVertexArray(0);
 }
 
-void OpenGLBackend::endFrame() {
-  m_sceneFBO->unbind();
-  glViewport(0, 0, m_width, m_height);
+void OpenGLBackend::blit(uint32_t sourceColorTexture,
+                         const glm::vec4& dstRectNDC) {
   glDisable(GL_DEPTH_TEST);
-  glClear(GL_COLOR_BUFFER_BIT);
-
-  glUseProgram(m_compositeShader);
-  glBindTextureUnit(0, m_sceneFBO->colorAttachment());
-  glUniform1i(glGetUniformLocation(m_compositeShader, "u_scene"), 0);
-  glBindVertexArray(m_fsVao);
-  glDrawArrays(GL_TRIANGLES, 0, 3);
+  glUseProgram(m_blitShader);
+  glBindTextureUnit(0, sourceColorTexture);
+  glUniform1i(glGetUniformLocation(m_blitShader, "u_scene"), 0);
+  glUniform4f(glGetUniformLocation(m_blitShader, "u_rect"), dstRectNDC.x,
+              dstRectNDC.y, dstRectNDC.z, dstRectNDC.w);
+  glBindVertexArray(m_quadVao);
+  glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
   glBindVertexArray(0);
-
-  glEnable(GL_DEPTH_TEST);
 }
 
 void OpenGLBackend::readPixels(int x, int y, int width, int height, void* out) {

@@ -1,6 +1,7 @@
 #ifndef ENGINE_RENDERER_RENDERBACKEND_HPP
 #define ENGINE_RENDERER_RENDERBACKEND_HPP
 
+#include <cstdint>
 #include <glm/glm.hpp>
 #include <vector>
 
@@ -12,16 +13,22 @@
 namespace engine {
 
 class ResourceRegistry;
+class Framebuffer;
 
 class RenderBackend {
  public:
   virtual ~RenderBackend() = default;
 
-  virtual void beginFrame(int width, int height) = 0;
+  // Bind `target` (null = default framebuffer + the given viewport) and clear.
+  virtual void beginPass(Framebuffer* target, const glm::vec4& clearColor,
+                         bool clearDepth, int viewportW, int viewportH) = 0;
   virtual void execute(const std::vector<RenderEntry>& entries,
                        const CameraUniforms& camera, Arena& scratch,
                        const ResourceRegistry& registry) = 0;
-  virtual void endFrame() = 0;
+  // Draw a tonemapped quad sampling `sourceColorTexture` into the bound target,
+  // covering the NDC rectangle {x0,y0,x1,y1}.
+  virtual void blit(uint32_t sourceColorTexture,
+                    const glm::vec4& dstRectNDC) = 0;
   virtual void readPixels(int x, int y, int width, int height, void* out) = 0;
 
   static Scope<RenderBackend> Create();

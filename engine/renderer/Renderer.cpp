@@ -22,6 +22,10 @@ Renderer::Renderer(JobSystem& jobs)
     m_lanes.push_back(CreateScope<WorkerBuffer>(kLaneArenaBytes));
   }
   initBuiltins();
+
+  m_sceneFBO = Framebuffer::Create(FramebufferSpec{});
+  m_scenePass = RenderPass{m_sceneFBO, {0.08f, 0.09f, 0.11f, 1.0f}, true};
+  m_compositePass = RenderPass{nullptr, {0.0f, 0.0f, 0.0f, 1.0f}, false};
 }
 
 void Renderer::initBuiltins() {
@@ -77,7 +81,8 @@ void Renderer::beginFrame(int width, int height) {
     lane->arena.reset();
     lane->queue.clear();
   }
-  m_backend->beginFrame(width, height);
+  m_sceneFBO->resize(static_cast<uint32_t>(width),
+                     static_cast<uint32_t>(height));
 }
 
 void Renderer::generateMeshes(
@@ -95,8 +100,16 @@ void Renderer::endFrame() {
                    [](const RenderEntry& a, const RenderEntry& b) {
                      return a.sortKey < b.sortKey;
                    });
+
+  // Scene pass -> HDR framebuffer.
+  m_backend->beginPass(m_scenePass.target.get(), m_scenePass.clearColor,
+                       m_scenePass.clearDepth, m_width, m_height);
   m_backend->execute(m_merged, m_camera, m_lanes[0]->arena, m_registry);
-  m_backend->endFrame();
+
+  // Composite pass -> default framebuffer.
+  m_backend->beginPass(m_compositePass.target.get(), m_compositePass.clearColor,
+                       m_compositePass.clearDepth, m_width, m_height);
+  m_backend->blit(m_sceneFBO->colorAttachment(), {-1.0f, -1.0f, 1.0f, 1.0f});
 }
 
 void Renderer::saveScreenshot(const std::string& path, int width, int height) {
