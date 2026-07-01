@@ -10,6 +10,7 @@ void DebugRenderer::drawLine(const glm::vec3& a, const glm::vec3& b,
   cmd.lineStart = a;
   cmd.lineEnd = b;
   cmd.color = color;
+  cmd.sortKey = makeSortKey(cmd.layer, 0, 0, 0);
   m_queue.submit(cmd);
 }
 
@@ -21,6 +22,7 @@ void DebugRenderer::drawCube(const glm::vec3& center, const glm::vec3& size,
   cmd.position = center;
   cmd.scale = size;
   cmd.color = color;
+  cmd.sortKey = makeSortKey(cmd.layer, 0, 0, 0);
   m_queue.submit(cmd);
 }
 
@@ -33,6 +35,7 @@ void DebugRenderer::drawGrid(float halfSize, float spacing,
     a.lineStart = {i, 0.0f, -halfSize};
     a.lineEnd = {i, 0.0f, halfSize};
     a.color = color;
+    a.sortKey = makeSortKey(a.layer, 0, 0, 0);
     m_queue.submit(a);
 
     RenderCommand b;
@@ -41,6 +44,7 @@ void DebugRenderer::drawGrid(float halfSize, float spacing,
     b.lineStart = {-halfSize, 0.0f, i};
     b.lineEnd = {halfSize, 0.0f, i};
     b.color = color;
+    b.sortKey = makeSortKey(b.layer, 0, 0, 0);
     m_queue.submit(b);
   }
 }
