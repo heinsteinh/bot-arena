@@ -13,6 +13,7 @@
 #include "engine/renderer/CameraUniforms.hpp"
 #include "engine/renderer/CommandBufferPool.hpp"
 #include "engine/renderer/Framebuffer.hpp"
+#include "engine/renderer/MinimapRect.hpp"
 #include "engine/renderer/RenderBackend.hpp"
 #include "engine/renderer/RenderPass.hpp"
 #include "engine/renderer/RenderQueue.hpp"
@@ -29,6 +30,10 @@ class Renderer {
 
   void setCamera(const Camera& camera) {
     m_camera = makeCameraUniforms(camera.view(), camera.projection());
+  }
+
+  void setMinimapCamera(const Camera& camera) {
+    m_minimapCamera = makeCameraUniforms(camera.view(), camera.projection());
   }
 
   RenderQueue& queue() { return m_lanes[0]->queue; }
@@ -59,6 +64,10 @@ class Renderer {
   Ref<Framebuffer> m_sceneFBO;
   RenderPass m_scenePass;
   RenderPass m_compositePass;
+  Ref<Framebuffer> m_minimapFBO;
+  RenderPass m_minimapPass;
+  CameraUniforms m_minimapCamera;
+  static constexpr uint32_t kMinimapSize = 512;
   int m_width = 0;
   int m_height = 0;
   MeshHandle m_cubeMesh = 0;

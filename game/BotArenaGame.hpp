@@ -27,6 +27,7 @@ class BotArenaGame final : public engine::Layer {
   engine::FlyCameraController m_flyController;
   engine::OrbitCameraController m_orbitController;
   engine::OrthographicCamera m_topDownCamera;
+  engine::OrthographicCamera m_minimapCam;
   engine::Camera2D m_uiCamera;
 
   CameraMode m_cameraMode = CameraMode::Fly;

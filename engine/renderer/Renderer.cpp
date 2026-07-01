@@ -26,6 +26,10 @@ Renderer::Renderer(JobSystem& jobs)
   m_sceneFBO = Framebuffer::Create(FramebufferSpec{});
   m_scenePass = RenderPass{m_sceneFBO, {0.08f, 0.09f, 0.11f, 1.0f}, true};
   m_compositePass = RenderPass{nullptr, {0.0f, 0.0f, 0.0f, 1.0f}, false};
+
+  m_minimapFBO =
+      Framebuffer::Create(FramebufferSpec{kMinimapSize, kMinimapSize, true});
+  m_minimapPass = RenderPass{m_minimapFBO, {0.02f, 0.03f, 0.05f, 1.0f}, true};
 }
 
 void Renderer::initBuiltins() {
@@ -101,6 +105,11 @@ void Renderer::endFrame() {
                      return a.sortKey < b.sortKey;
                    });
 
+  // Minimap pass -> offscreen texture (top-down camera).
+  m_backend->beginPass(m_minimapPass.target.get(), m_minimapPass.clearColor,
+                       m_minimapPass.clearDepth, kMinimapSize, kMinimapSize);
+  m_backend->execute(m_merged, m_minimapCamera, m_lanes[0]->arena, m_registry);
+
   // Scene pass -> HDR framebuffer.
   m_backend->beginPass(m_scenePass.target.get(), m_scenePass.clearColor,
                        m_scenePass.clearDepth, m_width, m_height);
@@ -110,6 +119,8 @@ void Renderer::endFrame() {
   m_backend->beginPass(m_compositePass.target.get(), m_compositePass.clearColor,
                        m_compositePass.clearDepth, m_width, m_height);
   m_backend->blit(m_sceneFBO->colorAttachment(), {-1.0f, -1.0f, 1.0f, 1.0f});
+  m_backend->blit(m_minimapFBO->colorAttachment(),
+                  minimapRect(m_width, m_height, 0.32f, 0.02f));
 }
 
 void Renderer::saveScreenshot(const std::string& path, int width, int height) {
