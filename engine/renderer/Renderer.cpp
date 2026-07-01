@@ -40,6 +40,11 @@ Renderer::Renderer(JobSystem& jobs)
   shadowSpec.depthOnly = true;
   m_shadowFBO = Framebuffer::Create(shadowSpec);
   m_shadowPass = RenderPass{m_shadowFBO, {0.0f, 0.0f, 0.0f, 1.0f}, true};
+
+  m_envMap = TextureCube::Create(kEnvSize, 1);
+  m_backend->renderEnvironment(m_envMap->rendererID(),
+                               static_cast<int>(kEnvSize), m_lightDir);
+  m_backend->setEnvironment(m_envMap->rendererID());
 }
 
 void Renderer::initBuiltins() {

@@ -136,12 +136,14 @@ unsigned int createLightingProgram() {
     uniform sampler2D u_gNormal;
     uniform sampler2D u_gWorldPos;
     uniform sampler2DShadow u_shadowMap;
+    uniform samplerCube u_envMap;
 
     layout(std140, binding = 0) uniform Camera {
       mat4 u_view;
       mat4 u_projection;
       mat4 u_viewProjection;
       vec4 u_cameraPos;
+      mat4 u_invViewProjection;
     };
 
     layout(std140, binding = 1) uniform Light {
@@ -205,8 +207,11 @@ unsigned int createLightingProgram() {
     void main() {
       vec4 nSample = texture(u_gNormal, v_uv);
       vec3 N = nSample.xyz;
-      if (dot(N, N) < 0.5) {          // no geometry: background
-        fragColor = vec4(0.02, 0.02, 0.03, 1.0);
+      if (dot(N, N) < 0.5) {          // no geometry: skybox
+        vec4 clip = vec4(v_uv * 2.0 - 1.0, 1.0, 1.0);
+        vec4 world = u_invViewProjection * clip;
+        vec3 dir = normalize(world.xyz / world.w - u_cameraPos.xyz);
+        fragColor = vec4(texture(u_envMap, dir).rgb, 1.0);
         return;
       }
       N = normalize(N);
@@ -285,9 +290,9 @@ unsigned int createSkyProgram() {
       vec2 c = v_uv * 2.0 - 1.0;
       vec3 dir = normalize(u_forward + c.x * u_right + c.y * u_up);
       float h = dir.y;
-      vec3 zenith = vec3(0.25, 0.45, 0.85);
-      vec3 horizon = vec3(0.75, 0.82, 0.95);
-      vec3 ground = vec3(0.15, 0.13, 0.11);
+      vec3 zenith = vec3(0.08, 0.26, 0.75);
+      vec3 horizon = vec3(0.52, 0.66, 0.92);
+      vec3 ground = vec3(0.12, 0.10, 0.09);
       vec3 sky = (h > 0.0)
           ? mix(horizon, zenith, pow(clamp(h, 0.0, 1.0), 0.5))
           : mix(horizon, ground, clamp(-h * 3.0, 0.0, 1.0));
