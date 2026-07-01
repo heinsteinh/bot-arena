@@ -6,6 +6,7 @@
 
 #include "engine/core/Arena.hpp"
 #include "engine/core/Base.hpp"
+#include "engine/renderer/CameraUniforms.hpp"
 #include "engine/renderer/RenderQueue.hpp"
 
 namespace engine {
@@ -18,7 +19,7 @@ class RenderBackend {
 
   virtual void beginFrame(int width, int height) = 0;
   virtual void execute(const std::vector<RenderEntry>& entries,
-                       const glm::mat4& viewProjection, Arena& scratch,
+                       const CameraUniforms& camera, Arena& scratch,
                        const ResourceRegistry& registry) = 0;
   virtual void endFrame() = 0;
   virtual void readPixels(int x, int y, int width, int height, void* out) = 0;

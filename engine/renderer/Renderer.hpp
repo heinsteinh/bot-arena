@@ -9,6 +9,8 @@
 
 #include "engine/core/Base.hpp"
 #include "engine/core/JobSystem.hpp"
+#include "engine/renderer/Camera.hpp"
+#include "engine/renderer/CameraUniforms.hpp"
 #include "engine/renderer/CommandBufferPool.hpp"
 #include "engine/renderer/RenderBackend.hpp"
 #include "engine/renderer/RenderQueue.hpp"
@@ -23,8 +25,8 @@ class Renderer {
   void beginFrame(int width, int height);
   void endFrame();
 
-  void setViewProjection(const glm::mat4& viewProjection) {
-    m_viewProjection = viewProjection;
+  void setCamera(const Camera& camera) {
+    m_camera = makeCameraUniforms(camera.view(), camera.projection());
   }
 
   RenderQueue& queue() { return m_lanes[0]->queue; }
@@ -51,7 +53,7 @@ class Renderer {
   std::vector<RenderEntry> m_merged;
   ResourceRegistry m_registry;
   Scope<RenderBackend> m_backend;
-  glm::mat4 m_viewProjection{1.0f};
+  CameraUniforms m_camera;
   int m_width = 0;
   int m_height = 0;
   MeshHandle m_cubeMesh = 0;

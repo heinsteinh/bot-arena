@@ -8,8 +8,10 @@
 #include <vector>
 
 #include "engine/renderer/Buffer.hpp"
+#include "engine/renderer/CameraUniforms.hpp"
 #include "engine/renderer/ResourceRegistry.hpp"
 #include "engine/renderer/Shader.hpp"
+#include "engine/renderer/UniformBuffer.hpp"
 #include "engine/renderer/VertexArray.hpp"
 
 namespace engine {
@@ -37,7 +39,12 @@ unsigned int createProgram() {
     #version 460 core
     layout(location = 0) in vec3 a_position;
     layout(location = 1) in vec4 a_color;
-    uniform mat4 u_viewProjection;
+    layout(std140, binding = 0) uniform Camera {
+      mat4 u_view;
+      mat4 u_projection;
+      mat4 u_viewProjection;
+      vec4 u_cameraPos;
+    };
     out vec4 v_color;
     void main() {
       v_color = a_color;
@@ -113,6 +120,8 @@ OpenGLBackend::OpenGLBackend() {
   glVertexAttribPointer(1, 4, GL_FLOAT, GL_FALSE, stride,
                         reinterpret_cast<void*>(sizeof(float) * 3));
   glBindVertexArray(0);
+
+  m_cameraUBO = UniformBuffer::Create(sizeof(CameraUniforms), 0);
 }
 
 OpenGLBackend::~OpenGLBackend() {
@@ -129,8 +138,9 @@ void OpenGLBackend::beginFrame(int width, int height) {
 }
 
 void OpenGLBackend::execute(const std::vector<RenderEntry>& entries,
-                            const glm::mat4& viewProjection, Arena& /*scratch*/,
+                            const CameraUniforms& camera, Arena& /*scratch*/,
                             const ResourceRegistry& registry) {
+  m_cameraUBO->setData(&camera, sizeof(CameraUniforms));
   if (entries.empty()) return;
 
   // --- Mesh pass: sorted; skip redundant shader/material binds ---
@@ -147,7 +157,6 @@ void OpenGLBackend::execute(const std::vector<RenderEntry>& entries,
     if (mat.shader != boundShader) {
       shader = registry.shader(mat.shader).get();
       shader->bind();
-      shader->setMat4("u_viewProjection", viewProjection);
       boundShader = mat.shader;
       boundMaterial = 0xFFFF;  // force material re-set under the new shader
     }
@@ -179,8 +188,6 @@ void OpenGLBackend::execute(const std::vector<RenderEntry>& entries,
   if (vertices.empty()) return;
 
   glUseProgram(m_shader);
-  const int loc = glGetUniformLocation(m_shader, "u_viewProjection");
-  glUniformMatrix4fv(loc, 1, GL_FALSE, glm::value_ptr(viewProjection));
 
   glBindVertexArray(m_vao);
   glBindBuffer(GL_ARRAY_BUFFER, m_vbo);

@@ -104,7 +104,7 @@ void BotArenaGame::onRender(engine::Renderer& renderer, int width, int height) {
   if (m_cameraMode == CameraMode::Orbit) camera = &m_orbitController.camera();
   if (m_cameraMode == CameraMode::TopDown) camera = &m_topDownCamera;
 
-  renderer.setViewProjection(camera->viewProjection());
+  renderer.setCamera(*camera);
 
   const engine::MeshHandle cube = renderer.unitCubeMesh();
 
