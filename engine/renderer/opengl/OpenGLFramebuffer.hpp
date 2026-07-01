@@ -14,6 +14,7 @@ class OpenGLFramebuffer final : public Framebuffer {
   void unbind() override;
   void resize(uint32_t width, uint32_t height) override;
   uint32_t colorAttachment() const override { return m_color; }
+  uint32_t depthAttachment() const override { return m_depth; }
 
  private:
   void invalidate();
