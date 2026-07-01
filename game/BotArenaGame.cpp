@@ -3,9 +3,12 @@
 #include <spdlog/spdlog.h>
 
 #include <cmath>
+#include <glm/gtc/matrix_transform.hpp>
 
 #include "engine/core/Input.hpp"
 #include "engine/renderer/DebugRenderer.hpp"
+#include "engine/renderer/MeshRenderer.hpp"
+#include "engine/renderer/ResourceRegistry.hpp"
 
 namespace game {
 
@@ -63,6 +66,17 @@ void BotArenaGame::onUpdate(float dt) {
 }
 
 void BotArenaGame::onRender(engine::Renderer& renderer, int width, int height) {
+  if (!m_resourcesReady) {
+    const engine::ShaderHandle s = renderer.meshShader();
+    m_wallMat =
+        renderer.registry().registerMaterial({{0.7f, 0.7f, 0.7f, 1.0f}, s});
+    m_obstacleMat =
+        renderer.registry().registerMaterial({{0.2f, 0.6f, 1.0f, 1.0f}, s});
+    m_botMat =
+        renderer.registry().registerMaterial({{1.0f, 0.2f, 0.2f, 1.0f}, s});
+    m_resourcesReady = true;
+  }
+
   const float aspect =
       height > 0 ? static_cast<float>(width) / static_cast<float>(height)
                  : 1.0f;
@@ -77,25 +91,29 @@ void BotArenaGame::onRender(engine::Renderer& renderer, int width, int height) {
 
   renderer.setViewProjection(camera->viewProjection());
 
+  engine::MeshRenderer mesh(renderer.queue(), renderer.registry(), *camera);
   engine::DebugRenderer debug(renderer.queue());
+
+  const engine::MeshHandle cube = renderer.unitCubeMesh();
+  auto box = [&](const glm::vec3& center, const glm::vec3& size,
+                 engine::MaterialHandle mat) {
+    // Unit cube spans [-1,1]; scale by half-size to get the requested extents.
+    glm::mat4 t = glm::translate(glm::mat4(1.0f), center);
+    t = glm::scale(t, size * 0.5f);
+    mesh.submit(cube, mat, t);
+  };
 
   debug.drawGrid(10.0f, 1.0f, {0.25f, 0.25f, 0.25f, 1.0f});
 
-  debug.drawCube({0.0f, 0.5f, -5.0f}, {10.0f, 1.0f, 0.25f},
-                 {0.7f, 0.7f, 0.7f, 1.0f});
-  debug.drawCube({0.0f, 0.5f, 5.0f}, {10.0f, 1.0f, 0.25f},
-                 {0.7f, 0.7f, 0.7f, 1.0f});
-  debug.drawCube({-5.0f, 0.5f, 0.0f}, {0.25f, 1.0f, 10.0f},
-                 {0.7f, 0.7f, 0.7f, 1.0f});
-  debug.drawCube({5.0f, 0.5f, 0.0f}, {0.25f, 1.0f, 10.0f},
-                 {0.7f, 0.7f, 0.7f, 1.0f});
+  box({0.0f, 0.5f, -5.0f}, {10.0f, 1.0f, 0.25f}, m_wallMat);
+  box({0.0f, 0.5f, 5.0f}, {10.0f, 1.0f, 0.25f}, m_wallMat);
+  box({-5.0f, 0.5f, 0.0f}, {0.25f, 1.0f, 10.0f}, m_wallMat);
+  box({5.0f, 0.5f, 0.0f}, {0.25f, 1.0f, 10.0f}, m_wallMat);
 
-  debug.drawCube({2.0f, 0.5f, 1.0f}, {1.0f, 1.0f, 1.0f},
-                 {0.2f, 0.6f, 1.0f, 1.0f});
-  debug.drawCube({-2.0f, 0.5f, -2.0f}, {1.5f, 1.0f, 1.5f},
-                 {0.2f, 0.6f, 1.0f, 1.0f});
+  box({2.0f, 0.5f, 1.0f}, {1.0f, 1.0f, 1.0f}, m_obstacleMat);
+  box({-2.0f, 0.5f, -2.0f}, {1.5f, 1.0f, 1.5f}, m_obstacleMat);
 
-  debug.drawCube(m_botPosition, {0.5f, 1.0f, 0.5f}, {1.0f, 0.2f, 0.2f, 1.0f});
+  box(m_botPosition, {0.5f, 1.0f, 0.5f}, m_botMat);
 
   debug.drawLine(m_botPosition, {0.0f, 0.5f, 0.0f}, {1.0f, 1.0f, 0.0f, 1.0f});
 }

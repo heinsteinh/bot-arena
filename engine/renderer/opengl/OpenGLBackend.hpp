@@ -12,7 +12,8 @@ class OpenGLBackend final : public RenderBackend {
 
   void beginFrame(int width, int height) override;
   void execute(const std::vector<RenderEntry>& entries,
-               const glm::mat4& viewProjection, Arena& scratch) override;
+               const glm::mat4& viewProjection, Arena& scratch,
+               const ResourceRegistry& registry) override;
   void endFrame() override;
   void readPixels(int x, int y, int width, int height, void* out) override;
 

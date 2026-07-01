@@ -26,7 +26,6 @@ class RenderQueue {
  private:
   Arena& m_arena;
   std::vector<RenderEntry> m_entries;
-  uint64_t m_sequence = 0;
 };
 
 }  // namespace engine
