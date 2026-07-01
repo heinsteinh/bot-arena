@@ -43,6 +43,7 @@ add_executable(bot_arena
     engine/renderer/DebugRenderer.cpp
     engine/renderer/ResourceRegistry.cpp
     engine/renderer/MeshRenderer.cpp
+    engine/renderer/CommandBufferPool.cpp
 
     game/BotArenaGame.cpp
 )
@@ -81,12 +82,14 @@ add_executable(bot_arena_tests
     tests/test_shader_parser.cpp
     tests/test_mesh_renderer.cpp
     tests/test_job_system.cpp
+    tests/test_command_buffer_pool.cpp
 
     engine/core/Arena.cpp
     engine/core/JobSystem.cpp
     engine/renderer/RenderQueue.cpp
     engine/renderer/ResourceRegistry.cpp
     engine/renderer/MeshRenderer.cpp
+    engine/renderer/CommandBufferPool.cpp
 )
 
 target_include_directories(bot_arena_tests
