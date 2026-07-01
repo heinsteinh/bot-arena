@@ -30,3 +30,16 @@ TEST_CASE("makeCameraUniforms recovers the eye position from the view",
   REQUIRE(u.cameraPosition.y == Catch::Approx(eye.y).margin(1e-3));
   REQUIRE(u.cameraPosition.z == Catch::Approx(eye.z).margin(1e-3));
 }
+
+TEST_CASE("makeCameraUniforms fills the inverse view-projection", "[camera]") {
+  const glm::vec3 eye{2.0f, 3.0f, 6.0f};
+  const glm::mat4 view = glm::lookAt(eye, glm::vec3(0.0f), {0.0f, 1.0f, 0.0f});
+  const glm::mat4 proj =
+      glm::perspective(glm::radians(50.0f), 1.6f, 0.1f, 100.0f);
+  const engine::CameraUniforms u = makeCameraUniforms(view, proj);
+
+  const glm::mat4 id = u.invViewProjection * u.viewProjection;
+  for (int c = 0; c < 4; ++c)
+    for (int r = 0; r < 4; ++r)
+      REQUIRE(id[c][r] == Catch::Approx(c == r ? 1.0f : 0.0f).margin(1e-3));
+}
