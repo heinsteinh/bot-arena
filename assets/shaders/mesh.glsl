@@ -30,13 +30,15 @@ in vec3 v_worldNormal;
 in vec3 v_worldPos;
 
 uniform vec4 u_baseColor;
+uniform float u_metallic;
+uniform float u_roughness;
 
 layout(location = 0) out vec4 gAlbedo;
 layout(location = 1) out vec4 gNormal;
 layout(location = 2) out vec4 gWorldPos;
 
 void main() {
-    gAlbedo = u_baseColor;
-    gNormal = vec4(normalize(v_worldNormal), 1.0);
+    gAlbedo = vec4(u_baseColor.rgb, u_metallic);
+    gNormal = vec4(normalize(v_worldNormal), u_roughness);
     gWorldPos = vec4(v_worldPos, 1.0);
 }

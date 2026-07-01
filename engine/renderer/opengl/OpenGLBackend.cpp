@@ -130,10 +130,19 @@ unsigned int createLightingProgram() {
     in vec2 v_uv;
     out vec4 fragColor;
 
+    const float PI = 3.14159265359;
+
     uniform sampler2D u_gAlbedo;
     uniform sampler2D u_gNormal;
     uniform sampler2D u_gWorldPos;
     uniform sampler2DShadow u_shadowMap;
+
+    layout(std140, binding = 0) uniform Camera {
+      mat4 u_view;
+      mat4 u_projection;
+      mat4 u_viewProjection;
+      vec4 u_cameraPos;
+    };
 
     layout(std140, binding = 1) uniform Light {
       mat4 u_lightViewProj;
@@ -160,23 +169,65 @@ unsigned int createLightingProgram() {
       return 1.0 - sum / 9.0;
     }
 
+    float distributionGGX(vec3 N, vec3 H, float rough) {
+      float a = rough * rough;
+      float a2 = a * a;
+      float ndh = max(dot(N, H), 0.0);
+      float d = ndh * ndh * (a2 - 1.0) + 1.0;
+      return a2 / (PI * d * d);
+    }
+    float geometrySchlickGGX(float ndv, float rough) {
+      float r = rough + 1.0;
+      float k = (r * r) / 8.0;
+      return ndv / (ndv * (1.0 - k) + k);
+    }
+    float geometrySmith(vec3 N, vec3 V, vec3 L, float rough) {
+      return geometrySchlickGGX(max(dot(N, V), 0.0), rough) *
+             geometrySchlickGGX(max(dot(N, L), 0.0), rough);
+    }
+    vec3 fresnelSchlick(float cosT, vec3 F0) {
+      return F0 + (1.0 - F0) * pow(clamp(1.0 - cosT, 0.0, 1.0), 5.0);
+    }
+
+    vec3 brdf(vec3 N, vec3 V, vec3 L, vec3 albedo, float metallic,
+              float rough, vec3 F0, vec3 radiance) {
+      vec3 H = normalize(V + L);
+      float ndl = max(dot(N, L), 0.0);
+      float ndv = max(dot(N, V), 0.0);
+      float D = distributionGGX(N, H, rough);
+      float G = geometrySmith(N, V, L, rough);
+      vec3 F = fresnelSchlick(max(dot(H, V), 0.0), F0);
+      vec3 spec = (D * G * F) / (4.0 * ndv * ndl + 0.0001);
+      vec3 kd = (vec3(1.0) - F) * (1.0 - metallic);
+      return (kd * albedo / PI + spec) * radiance * ndl;
+    }
+
     void main() {
-      vec3 N = texture(u_gNormal, v_uv).xyz;
+      vec4 nSample = texture(u_gNormal, v_uv);
+      vec3 N = nSample.xyz;
       if (dot(N, N) < 0.5) {          // no geometry: background
         fragColor = vec4(0.02, 0.02, 0.03, 1.0);
         return;
       }
       N = normalize(N);
-      vec3 albedo = texture(u_gAlbedo, v_uv).rgb;
+      float rough = nSample.a;
+      vec4 aSample = texture(u_gAlbedo, v_uv);
+      vec3 albedo = aSample.rgb;
+      float metallic = aSample.a;
       vec3 worldPos = texture(u_gWorldPos, v_uv).xyz;
 
-      vec3 color = 0.15 * albedo;     // ambient
+      vec3 V = normalize(u_cameraPos.xyz - worldPos);
+      vec3 F0 = mix(vec3(0.04), albedo, metallic);
 
+      vec3 color = 0.03 * albedo;     // flat ambient
+
+      // Directional light (shadowed).
       vec3 L = normalize(u_lightDir.xyz);
-      float ndl = max(dot(N, L), 0.0);
-      float shadow = shadowPCF(worldPos, ndl);
-      color += ndl * (1.0 - shadow) * albedo;
+      float shadow = shadowPCF(worldPos, max(dot(N, L), 0.0));
+      color += brdf(N, V, L, albedo, metallic, rough, F0, vec3(3.0)) *
+               (1.0 - shadow);
 
+      // Point lights.
       for (int i = 0; i < u_pointCount; ++i) {
         vec3 toL = u_points[i].positionRadius.xyz - worldPos;
         float dist = length(toL);
@@ -184,9 +235,8 @@ unsigned int createLightingProgram() {
         vec3 Lp = toL / max(dist, 1e-4);
         float att = clamp(1.0 - dist / radius, 0.0, 1.0);
         att *= att;
-        float ndlp = max(dot(N, Lp), 0.0);
-        color += att * ndlp * u_points[i].color.rgb * u_points[i].color.a *
-                 albedo;
+        vec3 radiance = u_points[i].color.rgb * u_points[i].color.a * att;
+        color += brdf(N, V, Lp, albedo, metallic, rough, F0, radiance);
       }
 
       fragColor = vec4(color, 1.0);
@@ -313,6 +363,8 @@ void OpenGLBackend::executeGeometry(const std::vector<RenderEntry>& entries,
     }
     if (cmd.material != boundMaterial) {
       shader->setFloat4("u_baseColor", mat.baseColor);
+      shader->setFloat("u_metallic", mat.metallic);
+      shader->setFloat("u_roughness", mat.roughness);
       boundMaterial = cmd.material;
     }
     shader->setMat4("u_transform", cmd.transform);
