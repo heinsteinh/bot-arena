@@ -4,6 +4,7 @@
 #include <random>
 #include <vector>
 
+#include "engine/ai/Steering.hpp"
 #include "engine/core/FixedTimestep.hpp"
 #include "engine/core/Input.hpp"
 #include "engine/physics/Collision.hpp"
@@ -68,6 +69,20 @@ void ArenaGame::stepSim(float dt) {
     players.get<Velocity>(e).value = glm::length(dir) > 0.001f
                                          ? glm::normalize(dir) * 3.0f
                                          : glm::vec3(0.0f);
+  }
+
+  // Bots seek the player.
+  glm::vec3 playerPos(0.0f);
+  for (const entt::entity e : m_registry.view<Transform, Player>()) {
+    playerPos = m_registry.get<Transform>(e).position;
+  }
+  for (const entt::entity e : m_registry.view<Transform, Velocity, Bot>()) {
+    Transform& tr = m_registry.get<Transform>(e);
+    Velocity& v = m_registry.get<Velocity>(e);
+    const glm::vec3 force = engine::seek(tr.position, v.value, playerPos,
+                                         kBotMaxSpeed, kBotMaxForce);
+    v.value += force * dt;
+    v.value = engine::truncate(v.value, kBotMaxSpeed);
   }
 
   // Integrate.
