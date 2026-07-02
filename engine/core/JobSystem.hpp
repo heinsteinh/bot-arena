@@ -23,6 +23,16 @@ class JobSystem {
 
   size_t workerCount() const { return m_workerCount; }
 
+  struct Stats {
+    size_t dispatches = 0;
+    size_t batches = 0;
+    size_t items = 0;
+    std::vector<size_t>
+        laneBatches;  // per-lane batch count (size workerCount())
+  };
+  const Stats& stats() const { return m_stats; }
+  void resetStats();
+
   void parallelFor(
       size_t count, size_t batchSize,
       const std::function<void(size_t begin, size_t end, size_t lane)>& fn);
@@ -36,6 +46,7 @@ class JobSystem {
   void workerLoop(size_t lane);
 
   size_t m_workerCount = 1;
+  Stats m_stats;
   std::vector<std::thread> m_threads;
 
   std::mutex m_mutex;

@@ -52,3 +52,17 @@ TEST_CASE("parallelFor writes each slot exactly once (no races)", "[jobs]") {
   });
   for (size_t i = 0; i < n; ++i) REQUIRE(out[i] == i + 1);
 }
+
+TEST_CASE("JobSystem records per-frame stats", "[jobsystem]") {
+  engine::JobSystem jobs(3);  // 3 workers + main = 4 lanes
+  jobs.resetStats();
+  jobs.parallelFor(100, 10, [](size_t, size_t, size_t) {});
+  const engine::JobSystem::Stats& s = jobs.stats();
+  REQUIRE(s.dispatches == 1);
+  REQUIRE(s.items == 100);
+  REQUIRE(s.batches == 10);
+  size_t laneSum = 0;
+  for (size_t b : s.laneBatches) laneSum += b;
+  REQUIRE(laneSum == 10);
+  REQUIRE(s.laneBatches.size() == jobs.workerCount());
+}
