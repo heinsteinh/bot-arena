@@ -44,6 +44,8 @@ class OpenGLBackend final : public RenderBackend {
   void setLight(const LightUniforms& light, uint32_t shadowMapTexture) override;
   void compositeBloom(uint32_t sceneTex, uint32_t bloomTex) override;
   void readPixels(int x, int y, int width, int height, void* out) override;
+  void drawText(uint32_t atlasTextureId, const std::vector<TextQuad>& quads,
+                int screenW, int screenH, const glm::vec4& color) override;
 
  private:
   Ref<UniformBuffer> m_cameraUBO;
@@ -51,6 +53,10 @@ class OpenGLBackend final : public RenderBackend {
   unsigned int m_compositeShader = 0;
   unsigned int m_quadVao = 0;
   unsigned int m_quadVbo = 0;
+
+  unsigned int m_textProgram = 0;
+  unsigned int m_textVao = 0;
+  unsigned int m_textVbo = 0;
 
   unsigned int m_shadowShader = 0;
   Ref<UniformBuffer> m_lightUBO;
