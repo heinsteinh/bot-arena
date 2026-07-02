@@ -41,6 +41,9 @@ class ArenaGame final : public engine::Layer {
   static constexpr float kBotRegen = 6.0f;
   static constexpr float kFleeFraction = 0.35f;
   static constexpr float kArenaEdge = 4.5f;
+  // Contact reach beyond the collision separation distance, so the ring of bots
+  // held apart by collision still lands hits.
+  static constexpr float kContactMargin = 0.2f;
 
   int m_kills = 0;
   int m_deaths = 0;

@@ -1,12 +1,17 @@
 #include "games/arena/ArenaGame.hpp"
 
+#include <spdlog/spdlog.h>
+
+#include <cmath>
 #include <glm/gtc/matrix_transform.hpp>
 #include <random>
+#include <string>
 #include <vector>
 
 #include "engine/ai/Steering.hpp"
 #include "engine/core/FixedTimestep.hpp"
 #include "engine/core/Input.hpp"
+#include "engine/gameplay/Combat.hpp"
 #include "engine/physics/Collision.hpp"
 #include "engine/renderer/MeshRenderer.hpp"
 #include "engine/renderer/PointLight.hpp"
@@ -23,7 +28,12 @@ void ArenaGame::onAttach() {
   // a genuinely simulated state — bots advanced along their velocities and some
   // already bounced off the walls. No input during warm-up, so the player
   // stays.
-  for (int i = 0; i < 120; ++i) stepSim(1.0f / 60.0f);
+  for (int i = 0; i < 300; ++i) stepSim(1.0f / 60.0f);
+
+  for (const entt::entity e : m_registry.view<Health, Player>()) {
+    spdlog::info("arena: after warmup HP={} kills={} deaths={}",
+                 m_registry.get<Health>(e).current, m_kills, m_deaths);
+  }
 }
 
 void ArenaGame::spawnEntities() {
@@ -81,8 +91,12 @@ void ArenaGame::stepSim(float dt) {
   for (const entt::entity e : m_registry.view<Transform, Velocity, Bot>()) {
     Transform& tr = m_registry.get<Transform>(e);
     Velocity& v = m_registry.get<Velocity>(e);
-    const glm::vec3 force = engine::seek(tr.position, v.value, playerPos,
-                                         kBotMaxSpeed, kBotMaxForce);
+    const Health& h = m_registry.get<Health>(e);
+    const glm::vec3 force = engine::shouldFlee(h.current, h.max, kFleeFraction)
+                                ? engine::flee(tr.position, v.value, playerPos,
+                                               kBotMaxSpeed, kBotMaxForce)
+                                : engine::seek(tr.position, v.value, playerPos,
+                                               kBotMaxSpeed, kBotMaxForce);
     v.value += force * dt;
     v.value = engine::truncate(v.value, kBotMaxSpeed);
   }
@@ -121,6 +135,49 @@ void ArenaGame::stepSim(float dt) {
         tr.position, v.value, boundsMin, boundsMax, tr.scale);
     tr.position = wb.position;
     v.value = wb.velocity;
+  }
+
+  // Combat: contact damage between the player and touching bots; bots regen
+  // while not in contact.
+  entt::entity playerEnt = entt::null;
+  for (const entt::entity e : m_registry.view<Transform, Player>()) {
+    playerEnt = e;
+  }
+  if (playerEnt != entt::null) {
+    Transform& pt = m_registry.get<Transform>(playerEnt);
+    Health& ph = m_registry.get<Health>(playerEnt);
+    for (const entt::entity e : m_registry.view<Transform, Health, Bot>()) {
+      Transform& bt = m_registry.get<Transform>(e);
+      Health& bh = m_registry.get<Health>(e);
+      const float dx = bt.position.x - pt.position.x;
+      const float dz = bt.position.z - pt.position.z;
+      const float dist = std::sqrt(dx * dx + dz * dz);
+      if (dist < bt.scale + pt.scale + kContactMargin) {
+        ph.current = engine::adjustHealth(ph.current, -kBotDps * dt, ph.max);
+        bh.current = engine::adjustHealth(bh.current, -kPlayerDps * dt, bh.max);
+      } else {
+        bh.current = engine::adjustHealth(bh.current, kBotRegen * dt, bh.max);
+      }
+    }
+
+    // Death / respawn.
+    std::uniform_real_distribution<float> angleD(0.0f, 6.2831853f);
+    for (const entt::entity e : m_registry.view<Transform, Health, Bot>()) {
+      Health& bh = m_registry.get<Health>(e);
+      if (bh.current <= 0.0f) {
+        Transform& bt = m_registry.get<Transform>(e);
+        const float a = angleD(m_rng);
+        bt.position = {std::cos(a) * kArenaEdge, 0.3f,
+                       std::sin(a) * kArenaEdge};
+        bh.current = bh.max;
+        ++m_kills;
+      }
+    }
+    if (ph.current <= 0.0f) {
+      pt.position = {0.0f, 0.3f, 0.0f};
+      ph.current = ph.max;
+      ++m_deaths;
+    }
   }
 }
 
