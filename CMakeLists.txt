@@ -101,6 +101,12 @@ add_executable(particles_game
 )
 target_link_libraries(particles_game PRIVATE bot_arena_engine)
 
+add_executable(models_game
+    games/models/main.cpp
+    games/models/ModelsGame.cpp
+)
+target_link_libraries(models_game PRIVATE bot_arena_engine)
+
 enable_testing()
 
 add_executable(bot_arena_tests
