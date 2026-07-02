@@ -41,13 +41,13 @@ class OpenGLBackend final : public RenderBackend {
                      const glm::mat4& lightViewProj, Arena& scratch,
                      const ResourceRegistry& registry) override;
   void setLight(const LightUniforms& light, uint32_t shadowMapTexture) override;
-  void blit(uint32_t sourceColorTexture, const glm::vec4& dstRectNDC) override;
+  void compositeBloom(uint32_t sceneTex, uint32_t bloomTex) override;
   void readPixels(int x, int y, int width, int height, void* out) override;
 
  private:
   Ref<UniformBuffer> m_cameraUBO;
 
-  unsigned int m_blitShader = 0;
+  unsigned int m_compositeShader = 0;
   unsigned int m_quadVao = 0;
   unsigned int m_quadVbo = 0;
 

@@ -84,6 +84,8 @@ class Renderer {
   static constexpr uint32_t kBrdfSize = 512;
   Ref<Framebuffer> m_ssaoFBO;
   Ref<Framebuffer> m_ssaoBlurFBO;
+  Ref<Framebuffer> m_bloomFBO[2];
+  static constexpr int kBloomBlurPasses = 5;
   int m_width = 0;
   int m_height = 0;
   MeshHandle m_cubeMesh = 0;

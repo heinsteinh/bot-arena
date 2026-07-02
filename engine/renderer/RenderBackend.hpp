@@ -69,8 +69,8 @@ class RenderBackend {
                         uint32_t shadowMapTexture) = 0;
   // Draw a tonemapped quad sampling `sourceColorTexture` into the bound target,
   // covering the NDC rectangle {x0,y0,x1,y1}.
-  virtual void blit(uint32_t sourceColorTexture,
-                    const glm::vec4& dstRectNDC) = 0;
+  // Add bloom to the HDR scene and tonemap into the bound target (fullscreen).
+  virtual void compositeBloom(uint32_t sceneTex, uint32_t bloomTex) = 0;
   virtual void readPixels(int x, int y, int width, int height, void* out) = 0;
 
   static Scope<RenderBackend> Create();

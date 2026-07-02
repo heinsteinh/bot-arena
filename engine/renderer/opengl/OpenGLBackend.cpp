@@ -54,16 +54,14 @@ unsigned int compileShader(unsigned int type, const char* source) {
   return shader;
 }
 
-unsigned int createBlitProgram() {
+unsigned int createCompositeProgram() {
   constexpr const char* vs = R"(
     #version 460 core
     layout(location = 0) in vec2 a_position;   // unit quad [0,1]^2
-    uniform vec4 u_rect;                        // {x0,y0,x1,y1} in NDC
     out vec2 v_uv;
     void main() {
       v_uv = a_position;
-      vec2 ndc = mix(u_rect.xy, u_rect.zw, a_position);
-      gl_Position = vec4(ndc, 0.0, 1.0);
+      gl_Position = vec4(a_position * 2.0 - 1.0, 0.0, 1.0);
     }
   )";
   constexpr const char* fs = R"(
@@ -71,11 +69,14 @@ unsigned int createBlitProgram() {
     in vec2 v_uv;
     out vec4 fragColor;
     uniform sampler2D u_scene;
+    uniform sampler2D u_bloom;
+    uniform float u_bloomIntensity;
     void main() {
-      vec3 c = texture(u_scene, v_uv).rgb;
-      c = c / (c + vec3(1.0));        // Reinhard tonemap
-      c = pow(c, vec3(1.0 / 2.2));    // gamma
-      fragColor = vec4(c, 1.0);
+      vec3 hdr = texture(u_scene, v_uv).rgb +
+                 texture(u_bloom, v_uv).rgb * u_bloomIntensity;
+      hdr = hdr / (hdr + vec3(1.0));   // Reinhard tonemap
+      hdr = pow(hdr, vec3(1.0 / 2.2)); // gamma
+      fragColor = vec4(hdr, 1.0);
     }
   )";
   const unsigned int v = compileShader(GL_VERTEX_SHADER, vs);
@@ -795,7 +796,7 @@ unsigned int createBloomBlurProgram() {
 OpenGLBackend::OpenGLBackend() {
   m_cameraUBO = UniformBuffer::Create(sizeof(CameraUniforms), 0);
 
-  m_blitShader = createBlitProgram();
+  m_compositeShader = createCompositeProgram();
 
   // Unit quad [0,1]^2 as a triangle strip: (0,0),(1,0),(0,1),(1,1).
   const float quad[] = {0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f};
@@ -838,7 +839,7 @@ OpenGLBackend::OpenGLBackend() {
 }
 
 OpenGLBackend::~OpenGLBackend() {
-  if (m_blitShader) glDeleteProgram(m_blitShader);
+  if (m_compositeShader) glDeleteProgram(m_compositeShader);
   if (m_shadowShader) glDeleteProgram(m_shadowShader);
   if (m_lightingShader) glDeleteProgram(m_lightingShader);
   if (m_skyShader) glDeleteProgram(m_skyShader);
@@ -1072,14 +1073,15 @@ void OpenGLBackend::prefilterEnvironment(uint32_t env, uint32_t prefilterCube,
   glDeleteFramebuffers(1, &fbo);
 }
 
-void OpenGLBackend::blit(uint32_t sourceColorTexture,
-                         const glm::vec4& dstRectNDC) {
+void OpenGLBackend::compositeBloom(uint32_t sceneTex, uint32_t bloomTex) {
   glDisable(GL_DEPTH_TEST);
-  glUseProgram(m_blitShader);
-  glBindTextureUnit(0, sourceColorTexture);
-  glUniform1i(glGetUniformLocation(m_blitShader, "u_scene"), 0);
-  glUniform4f(glGetUniformLocation(m_blitShader, "u_rect"), dstRectNDC.x,
-              dstRectNDC.y, dstRectNDC.z, dstRectNDC.w);
+  glUseProgram(m_compositeShader);
+  glBindTextureUnit(0, sceneTex);
+  glBindTextureUnit(1, bloomTex);
+  glUniform1i(glGetUniformLocation(m_compositeShader, "u_scene"), 0);
+  glUniform1i(glGetUniformLocation(m_compositeShader, "u_bloom"), 1);
+  glUniform1f(glGetUniformLocation(m_compositeShader, "u_bloomIntensity"),
+              1.0f);
   glBindVertexArray(m_quadVao);
   glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
   glBindVertexArray(0);
@@ -1130,7 +1132,7 @@ void OpenGLBackend::bloomExtract(uint32_t sceneTex) {
   glUseProgram(m_bloomExtractShader);
   glBindTextureUnit(0, sceneTex);
   glUniform1i(glGetUniformLocation(m_bloomExtractShader, "u_scene"), 0);
-  glUniform1f(glGetUniformLocation(m_bloomExtractShader, "u_threshold"), 1.0f);
+  glUniform1f(glGetUniformLocation(m_bloomExtractShader, "u_threshold"), 0.45f);
   glBindVertexArray(m_quadVao);
   glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
   glBindVertexArray(0);
