@@ -9,6 +9,7 @@
 #include "engine/core/Layer.hpp"
 #include "engine/core/Window.hpp"
 #include "engine/renderer/Renderer.hpp"
+#include "engine/renderer/text/Font.hpp"
 
 namespace engine {
 
@@ -25,6 +26,9 @@ class Application {
   std::unique_ptr<GraphicsContext> m_context;
   std::unique_ptr<JobSystem> m_jobs;
   std::unique_ptr<Renderer> m_renderer;
+
+  Ref<Font> m_debugFont;
+  float m_fps = 0.0f;
 
   std::vector<std::unique_ptr<Layer>> m_layers;
 };
