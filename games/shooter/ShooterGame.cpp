@@ -181,6 +181,7 @@ void ShooterGame::stepSim(float dt) {
       const glm::vec3& ep = m_registry.get<Transform>(en).position;
       if (engine::circlesOverlapXZ(bp, kBulletRadius, ep, kEnemyRadius)) {
         Health& eh = m_registry.get<Health>(en);
+        if (eh.current <= 0.0f) continue;  // already dying this frame
         eh.current = engine::adjustHealth(eh.current, -1.0f, eh.max);
         killed.push_back(b);
         if (eh.current <= 0.0f) {
@@ -195,16 +196,53 @@ void ShooterGame::stepSim(float dt) {
     if (m_registry.valid(e)) m_registry.destroy(e);
   }
 
-  // Enemies reaching the player breach (removed; no player health yet).
-  std::vector<entt::entity> breached;
+  // Enemy bullets and rams damage the player.
+  entt::entity playerEnt = entt::null;
+  for (const entt::entity e : m_registry.view<Player>()) playerEnt = e;
+  Health& ph = m_registry.get<Health>(playerEnt);
+
+  std::vector<entt::entity> spent;
+  for (const entt::entity b : m_registry.view<Transform, Bullet>()) {
+    if (m_registry.get<Bullet>(b).fromPlayer) continue;
+    const glm::vec3& bp = m_registry.get<Transform>(b).position;
+    if (engine::circlesOverlapXZ(bp, kBulletRadius, playerPos, kPlayerRadius)) {
+      ph.current =
+          engine::adjustHealth(ph.current, -kEnemyBulletDamage, ph.max);
+      spent.push_back(b);
+    }
+  }
+  for (const entt::entity e : spent) m_registry.destroy(e);
+
+  std::vector<entt::entity> rammed;
   for (const entt::entity en : m_registry.view<Transform, Enemy>()) {
     const glm::vec3& ep = m_registry.get<Transform>(en).position;
     if (engine::circlesOverlapXZ(ep, kEnemyRadius, playerPos, kPlayerRadius)) {
-      breached.push_back(en);
+      ph.current = engine::adjustHealth(ph.current, -kRamDamage, ph.max);
+      rammed.push_back(en);
     }
   }
-  for (const entt::entity e : breached) m_registry.destroy(e);
-  m_leaks += static_cast<int>(breached.size());
+  for (const entt::entity e : rammed) m_registry.destroy(e);
+
+  // Death: lose a life and respawn; out of lives resets the run.
+  if (ph.current <= 0.0f) {
+    --m_lives;
+    m_registry.get<Transform>(playerEnt).position = {0.0f, 0.4f, 0.0f};
+    ph.current = ph.max;
+    if (m_lives > 0) {
+      std::vector<entt::entity> clearBullets;
+      for (const entt::entity b : m_registry.view<Bullet>()) {
+        if (!m_registry.get<Bullet>(b).fromPlayer) clearBullets.push_back(b);
+      }
+      for (const entt::entity e : clearBullets) m_registry.destroy(e);
+    } else {
+      std::vector<entt::entity> wipe;
+      for (const entt::entity e : m_registry.view<Enemy>()) wipe.push_back(e);
+      for (const entt::entity e : m_registry.view<Bullet>()) wipe.push_back(e);
+      for (const entt::entity e : wipe) m_registry.destroy(e);
+      m_score = 0;
+      m_lives = kLives;
+    }
+  }
 }
 
 void ShooterGame::onRender(engine::Renderer& renderer, int width, int height) {
@@ -296,12 +334,21 @@ void ShooterGame::onRender(engine::Renderer& renderer, int width, int height) {
       (void)e;
       ++enemies;
     }
+    float hp = 0.0f, hpMax = 0.0f;
+    for (const entt::entity e : m_registry.view<Health, Player>()) {
+      hp = m_registry.get<Health>(e).current;
+      hpMax = m_registry.get<Health>(e).max;
+    }
     const float bottom = static_cast<float>(height);
     renderer.drawText(*m_font, "Score: " + std::to_string(m_score), 8.0f,
-                      bottom - 56.0f, 0.7f, glm::vec4(1.0f));
-    renderer.drawText(*m_font, "Enemies: " + std::to_string(enemies), 8.0f,
+                      bottom - 78.0f, 0.7f, glm::vec4(1.0f));
+    renderer.drawText(*m_font,
+                      "HP: " + std::to_string(static_cast<int>(hp)) + " / " +
+                          std::to_string(static_cast<int>(hpMax)),
+                      8.0f, bottom - 56.0f, 0.7f, glm::vec4(1.0f));
+    renderer.drawText(*m_font, "Lives: " + std::to_string(m_lives), 8.0f,
                       bottom - 34.0f, 0.7f, glm::vec4(1.0f));
-    renderer.drawText(*m_font, "Leaks: " + std::to_string(m_leaks), 8.0f,
+    renderer.drawText(*m_font, "Enemies: " + std::to_string(enemies), 8.0f,
                       bottom - 12.0f, 0.7f, glm::vec4(1.0f));
   }
 }

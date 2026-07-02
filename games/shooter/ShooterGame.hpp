@@ -29,7 +29,7 @@ class ShooterGame final : public engine::Layer {
   float m_fireTimer = 0.0f;
   float m_spawnTimer = 0.0f;
   int m_score = 0;
-  int m_leaks = 0;
+  int m_lives = 3;
 
   bool m_resourcesReady = false;
   engine::MaterialHandle m_groundMat = 0;
@@ -58,6 +58,9 @@ class ShooterGame final : public engine::Layer {
   static constexpr float kFireRange = 11.0f;
   static constexpr float kEnemyFireCooldown = 1.6f;
   static constexpr float kBulletYawOffset = 0.0f;
+  static constexpr float kEnemyBulletDamage = 10.0f;
+  static constexpr float kRamDamage = 25.0f;
+  static constexpr int kLives = 3;
 };
 
 }  // namespace shooter
