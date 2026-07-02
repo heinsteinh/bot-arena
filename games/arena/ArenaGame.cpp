@@ -23,6 +23,8 @@ namespace arena {
 void ArenaGame::onAttach() {
   m_camera.setTarget({0.0f, 0.5f, 0.0f});
   m_camera.setOrbit(45.0f, 55.0f, 18.0f);
+  m_font = engine::Font::Load(
+      std::string(BOTARENA_ASSET_DIR) + "/fonts/DejaVuSans.ttf", 32);
   spawnEntities();
   // Deterministic warm-up so a single-frame (headless screenshot) capture shows
   // a genuinely simulated state — bots advanced along their velocities and some
@@ -248,6 +250,22 @@ void ArenaGame::onRender(engine::Renderer& renderer, int width, int height) {
     glm::mat4 m = glm::translate(glm::mat4(1.0f), tr.position);
     m = glm::scale(m, glm::vec3(tr.scale));
     meshes.submit(cube, mat, m);
+  }
+
+  if (m_font) {
+    float playerHp = 0.0f;
+    float playerMax = 0.0f;
+    for (const entt::entity e : m_registry.view<Health, Player>()) {
+      playerHp = m_registry.get<Health>(e).current;
+      playerMax = m_registry.get<Health>(e).max;
+    }
+    const float bottom = static_cast<float>(height);
+    renderer.drawText(*m_font,
+                      "HP: " + std::to_string(static_cast<int>(playerHp)) +
+                          " / " + std::to_string(static_cast<int>(playerMax)),
+                      8.0f, bottom - 34.0f, 0.7f, glm::vec4(1.0f));
+    renderer.drawText(*m_font, "Kills: " + std::to_string(m_kills), 8.0f,
+                      bottom - 12.0f, 0.7f, glm::vec4(1.0f));
   }
 }
 
