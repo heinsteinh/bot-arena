@@ -36,6 +36,8 @@ class ShooterGame final : public engine::Layer {
   engine::Model m_playerModel;
   engine::Model m_enemyModels[3];
   engine::Model m_bulletModel;
+  engine::MaterialHandle m_playerBulletMat = 0;
+  engine::MaterialHandle m_enemyBulletMat = 0;
   engine::Ref<engine::Font> m_font;
 
   static constexpr float kPlayerSpeed = 6.0f;
@@ -51,6 +53,11 @@ class ShooterGame final : public engine::Layer {
   static constexpr float kCullBound = 13.0f;
   static constexpr int kEnemyCap = 12;
   static constexpr float kMaxHealth = 100.0f;
+  static constexpr float kEnemyBulletSpeed = 9.0f;
+  static constexpr float kEnemyBulletLife = 2.5f;
+  static constexpr float kFireRange = 11.0f;
+  static constexpr float kEnemyFireCooldown = 1.6f;
+  static constexpr float kBulletYawOffset = 0.0f;
 };
 
 }  // namespace shooter

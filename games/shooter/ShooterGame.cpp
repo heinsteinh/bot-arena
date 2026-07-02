@@ -8,6 +8,7 @@
 #include "engine/assets/MeshBounds.hpp"
 #include "engine/core/AssetPath.hpp"
 #include "engine/core/Input.hpp"
+#include "engine/gameplay/Combat.hpp"
 #include "engine/gameplay/ShipControls.hpp"
 #include "engine/renderer/MeshRenderer.hpp"
 #include "engine/renderer/PointLight.hpp"
@@ -27,7 +28,7 @@ void ShooterGame::onAttach() {
   m_registry.emplace<Player>(player);
   m_registry.emplace<Health>(player, kMaxHealth, kMaxHealth);
 
-  for (int i = 0; i < 150; ++i) stepSim(1.0f / 60.0f);
+  for (int i = 0; i < 250; ++i) stepSim(1.0f / 60.0f);
 }
 
 void ShooterGame::onUpdate(float dt) {
@@ -54,7 +55,10 @@ void ShooterGame::spawnEnemy() {
       glm::vec3(std::cos(a) * kSpawnRadius, 0.4f, std::sin(a) * kSpawnRadius),
       tier == 2 ? 1.5f : (tier == 1 ? 1.3f : 0.9f), 0.0f);
   m_registry.emplace<Velocity>(e, glm::vec3(0.0f));
-  m_registry.emplace<Enemy>(e, tier);
+  std::uniform_real_distribution<float> ftD(0.3f, kEnemyFireCooldown);
+  m_registry.emplace<Enemy>(e, tier, ftD(m_rng));
+  const float hp = tier == 2 ? 5.0f : (tier == 1 ? 3.0f : 1.0f);
+  m_registry.emplace<Health>(e, hp, hp);
 }
 
 void ShooterGame::stepSim(float dt) {
@@ -94,17 +98,36 @@ void ShooterGame::stepSim(float dt) {
     playerYaw = t.yaw;
   }
 
-  // Enemies seek the player.
+  // Enemies seek the player, face the player, and fire when in range.
   const float kTierSpeed[3] = {3.0f, 2.0f, 4.0f};
+  std::vector<glm::vec3> enemyShots;
   for (const entt::entity e : m_registry.view<Transform, Velocity, Enemy>()) {
     Transform& t = m_registry.get<Transform>(e);
     Velocity& v = m_registry.get<Velocity>(e);
-    const float maxSpeed = kTierSpeed[m_registry.get<Enemy>(e).tier];
+    Enemy& en = m_registry.get<Enemy>(e);
+    const float maxSpeed = kTierSpeed[en.tier];
     const glm::vec3 force =
         engine::seek(t.position, v.value, playerPos, maxSpeed, 8.0f);
     v.value += force * dt;
     v.value = engine::truncate(v.value, maxSpeed);
     t.yaw = engine::headingToYaw(playerPos - t.position);
+    en.fireTimer -= dt;
+    if (en.fireTimer <= 0.0f) {
+      if (glm::length(playerPos - t.position) < kFireRange) {
+        enemyShots.push_back(t.position);
+        en.fireTimer = kEnemyFireCooldown;
+      } else {
+        en.fireTimer = 0.0f;  // ready to fire the moment it is in range
+      }
+    }
+  }
+  for (const glm::vec3& origin : enemyShots) {
+    const glm::vec3 aim = glm::normalize(playerPos - origin);
+    const entt::entity eb = m_registry.create();
+    m_registry.emplace<Transform>(eb, origin + aim * 0.8f, 1.3f,
+                                  engine::headingToYaw(aim));
+    m_registry.emplace<Velocity>(eb, aim * kEnemyBulletSpeed);
+    m_registry.emplace<Bullet>(eb, kEnemyBulletLife, false);
   }
 
   // Spawn on a timer up to the cap.
@@ -124,7 +147,7 @@ void ShooterGame::stepSim(float dt) {
   if (m_fireTimer <= 0.0f) {
     const glm::vec3 fwd = engine::forwardFromYaw(playerYaw);
     const entt::entity b = m_registry.create();
-    m_registry.emplace<Transform>(b, playerPos + fwd * kNoseOffset, 0.35f,
+    m_registry.emplace<Transform>(b, playerPos + fwd * kNoseOffset, 1.3f,
                                   engine::headingToYaw(fwd));
     m_registry.emplace<Velocity>(b, fwd * kBulletSpeed);
     m_registry.emplace<Bullet>(b, kBulletLife, true);
@@ -148,18 +171,22 @@ void ShooterGame::stepSim(float dt) {
   }
   for (const entt::entity e : deadBullets) m_registry.destroy(e);
 
-  // Bullet -> enemy hits.
+  // Player bullets damage enemies; enemies die when their health is spent.
   const int kWeight[3] = {1, 2, 3};
   std::vector<entt::entity> killed;
   for (const entt::entity b : m_registry.view<Transform, Bullet>()) {
     if (!m_registry.get<Bullet>(b).fromPlayer) continue;
     const glm::vec3& bp = m_registry.get<Transform>(b).position;
-    for (const entt::entity en : m_registry.view<Transform, Enemy>()) {
+    for (const entt::entity en : m_registry.view<Transform, Enemy, Health>()) {
       const glm::vec3& ep = m_registry.get<Transform>(en).position;
       if (engine::circlesOverlapXZ(bp, kBulletRadius, ep, kEnemyRadius)) {
-        m_score += kWeight[m_registry.get<Enemy>(en).tier];
+        Health& eh = m_registry.get<Health>(en);
+        eh.current = engine::adjustHealth(eh.current, -1.0f, eh.max);
         killed.push_back(b);
-        killed.push_back(en);
+        if (eh.current <= 0.0f) {
+          m_score += kWeight[m_registry.get<Enemy>(en).tier];
+          killed.push_back(en);
+        }
         break;
       }
     }
@@ -186,6 +213,10 @@ void ShooterGame::onRender(engine::Renderer& renderer, int width, int height) {
     engine::ResourceRegistry& reg = renderer.registry();
     m_groundMat =
         reg.registerMaterial({{0.05f, 0.06f, 0.09f, 1.0f}, 0.0f, 0.9f, s});
+    m_playerBulletMat =
+        reg.registerMaterial({{0.3f, 1.0f, 0.4f, 1.0f}, 0.2f, 0.3f, s});
+    m_enemyBulletMat =
+        reg.registerMaterial({{1.0f, 0.3f, 0.2f, 1.0f}, 0.2f, 0.3f, s});
     m_playerModel = engine::loadModel(
         engine::assetPath("asteroid-game/Ships/Viper.obj"), reg, s);
     m_enemyModels[0] =
@@ -247,7 +278,16 @@ void ShooterGame::onRender(engine::Renderer& renderer, int width, int height) {
   }
   for (const entt::entity e : m_registry.view<Transform, Bullet>()) {
     const Transform& t = m_registry.get<Transform>(e);
-    drawModel(m_bulletModel, t.position, t.yaw, t.scale);
+    const engine::MaterialHandle mat = m_registry.get<Bullet>(e).fromPlayer
+                                           ? m_playerBulletMat
+                                           : m_enemyBulletMat;
+    glm::mat4 m = glm::translate(glm::mat4(1.0f), t.position);
+    m = glm::rotate(m, t.yaw + kBulletYawOffset, {0.0f, 1.0f, 0.0f});
+    m = glm::scale(m, glm::vec3(t.scale));
+    m = m * engine::fitToUnitTransform(m_bulletModel.bounds);
+    for (const engine::Submesh& sm : m_bulletModel.submeshes) {
+      meshes.submit(sm.mesh, mat, m);
+    }
   }
 
   if (m_font) {
