@@ -21,7 +21,7 @@ void ShooterGame::onAttach() {
   m_camera.setOrbit(0.0f, 62.0f, 22.0f);
 
   const entt::entity player = m_registry.create();
-  m_registry.emplace<Transform>(player, glm::vec3(0.0f, 0.4f, 0.0f), 0.6f,
+  m_registry.emplace<Transform>(player, glm::vec3(0.0f, 0.4f, 0.0f), 1.1f,
                                 0.0f);
   m_registry.emplace<Velocity>(player, glm::vec3(0.0f));
   m_registry.emplace<Player>(player);
@@ -51,7 +51,7 @@ void ShooterGame::spawnEnemy() {
   m_registry.emplace<Transform>(
       e,
       glm::vec3(std::cos(a) * kSpawnRadius, 0.4f, std::sin(a) * kSpawnRadius),
-      tier == 2 ? 0.8f : (tier == 1 ? 0.9f : 0.6f), 0.0f);
+      tier == 2 ? 1.5f : (tier == 1 ? 1.3f : 0.9f), 0.0f);
   m_registry.emplace<Velocity>(e, glm::vec3(0.0f));
   m_registry.emplace<Enemy>(e, tier);
 }
@@ -73,7 +73,21 @@ void ShooterGame::stepSim(float dt) {
       v.value = glm::normalize(dir) * kPlayerSpeed;
       t.yaw = engine::headingToYaw(v.value);
     } else {
+      // Idle: hold position and auto-aim at the nearest enemy.
       v.value = glm::vec3(0.0f);
+      float best = 1e18f;
+      glm::vec3 target(0.0f);
+      bool found = false;
+      for (const entt::entity en : m_registry.view<Transform, Enemy>()) {
+        const glm::vec3& ep = m_registry.get<Transform>(en).position;
+        const float dsq = glm::dot(ep - t.position, ep - t.position);
+        if (dsq < best) {
+          best = dsq;
+          target = ep;
+          found = true;
+        }
+      }
+      if (found) t.yaw = engine::headingToYaw(target - t.position);
     }
     playerPos = t.position;
     playerYaw = t.yaw;
@@ -132,6 +146,36 @@ void ShooterGame::stepSim(float dt) {
     }
   }
   for (const entt::entity e : deadBullets) m_registry.destroy(e);
+
+  // Bullet -> enemy hits.
+  const int kWeight[3] = {1, 2, 3};
+  std::vector<entt::entity> killed;
+  for (const entt::entity b : m_registry.view<Transform, Bullet>()) {
+    const glm::vec3& bp = m_registry.get<Transform>(b).position;
+    for (const entt::entity en : m_registry.view<Transform, Enemy>()) {
+      const glm::vec3& ep = m_registry.get<Transform>(en).position;
+      if (engine::circlesOverlapXZ(bp, kBulletRadius, ep, kEnemyRadius)) {
+        m_score += kWeight[m_registry.get<Enemy>(en).tier];
+        killed.push_back(b);
+        killed.push_back(en);
+        break;
+      }
+    }
+  }
+  for (const entt::entity e : killed) {
+    if (m_registry.valid(e)) m_registry.destroy(e);
+  }
+
+  // Enemies reaching the player breach (removed; no player health yet).
+  std::vector<entt::entity> breached;
+  for (const entt::entity en : m_registry.view<Transform, Enemy>()) {
+    const glm::vec3& ep = m_registry.get<Transform>(en).position;
+    if (engine::circlesOverlapXZ(ep, kEnemyRadius, playerPos, kPlayerRadius)) {
+      breached.push_back(en);
+    }
+  }
+  for (const entt::entity e : breached) m_registry.destroy(e);
+  m_leaks += static_cast<int>(breached.size());
 }
 
 void ShooterGame::onRender(engine::Renderer& renderer, int width, int height) {
@@ -188,18 +232,35 @@ void ShooterGame::onRender(engine::Renderer& renderer, int width, int height) {
     }
   };
 
+  // The ship models point opposite the heading, so rotate them 180 deg.
+  constexpr float kShipYaw = 3.1415927f;
   for (const entt::entity e : m_registry.view<Transform, Player>()) {
     const Transform& t = m_registry.get<Transform>(e);
-    drawModel(m_playerModel, t.position, t.yaw, t.scale);
+    drawModel(m_playerModel, t.position, t.yaw + kShipYaw, t.scale);
   }
   for (const entt::entity e : m_registry.view<Transform, Enemy>()) {
     const Transform& t = m_registry.get<Transform>(e);
-    drawModel(m_enemyModels[m_registry.get<Enemy>(e).tier], t.position, t.yaw,
-              t.scale);
+    drawModel(m_enemyModels[m_registry.get<Enemy>(e).tier], t.position,
+              t.yaw + kShipYaw, t.scale);
   }
   for (const entt::entity e : m_registry.view<Transform, Bullet>()) {
     const Transform& t = m_registry.get<Transform>(e);
     drawModel(m_bulletModel, t.position, t.yaw, t.scale);
+  }
+
+  if (m_font) {
+    int enemies = 0;
+    for (const entt::entity e : m_registry.view<Enemy>()) {
+      (void)e;
+      ++enemies;
+    }
+    const float bottom = static_cast<float>(height);
+    renderer.drawText(*m_font, "Score: " + std::to_string(m_score), 8.0f,
+                      bottom - 56.0f, 0.7f, glm::vec4(1.0f));
+    renderer.drawText(*m_font, "Enemies: " + std::to_string(enemies), 8.0f,
+                      bottom - 34.0f, 0.7f, glm::vec4(1.0f));
+    renderer.drawText(*m_font, "Leaks: " + std::to_string(m_leaks), 8.0f,
+                      bottom - 12.0f, 0.7f, glm::vec4(1.0f));
   }
 }
 
