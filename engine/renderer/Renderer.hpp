@@ -5,6 +5,7 @@
 #include <functional>
 #include <glm/glm.hpp>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include "engine/core/Base.hpp"
@@ -20,6 +21,8 @@
 #include "engine/renderer/RenderQueue.hpp"
 #include "engine/renderer/ResourceRegistry.hpp"
 #include "engine/renderer/TextureCube.hpp"
+#include "engine/renderer/text/Font.hpp"
+#include "engine/renderer/text/TextLayout.hpp"
 
 namespace engine {
 
@@ -51,15 +54,27 @@ class Renderer {
 
   void saveScreenshot(const std::string& path, int width, int height);
 
+  // Enqueue a screen-space text string (pixel coords, y-down) to be drawn over
+  // the composited frame in endFrame.
+  void drawText(const Font& font, std::string_view text, float x, float y,
+                float scale, const glm::vec4& color);
+
  private:
   static constexpr std::size_t kLaneArenaBytes = 8 * 1024 * 1024;
   static constexpr size_t kBatchSize = 128;
 
   void initBuiltins();
 
+  struct TextBatch {
+    uint32_t atlas;
+    std::vector<TextQuad> quads;
+    glm::vec4 color;
+  };
+
   JobSystem& m_jobs;
   std::vector<Scope<WorkerBuffer>> m_lanes;
   std::vector<RenderEntry> m_merged;
+  std::vector<TextBatch> m_textBatches;
   ResourceRegistry m_registry;
   Scope<RenderBackend> m_backend;
   CameraUniforms m_camera;

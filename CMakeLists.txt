@@ -17,6 +17,7 @@ find_package(spdlog CONFIG REQUIRED)
 find_package(yaml-cpp CONFIG REQUIRED)
 find_package(imgui CONFIG REQUIRED)
 find_package(Stb REQUIRED)
+find_package(freetype CONFIG REQUIRED)
 find_package(Catch2 3 CONFIG REQUIRED)
 find_package(Threads REQUIRED)
 
@@ -37,6 +38,9 @@ add_library(bot_arena_engine STATIC
     engine/renderer/opengl/OpenGLUniformBuffer.cpp
     engine/renderer/opengl/OpenGLFramebuffer.cpp
     engine/renderer/opengl/OpenGLTextureCube.cpp
+    engine/renderer/opengl/OpenGLTexture2D.cpp
+
+    engine/renderer/text/Font.cpp
 
     engine/renderer/RenderBackend.cpp
     engine/renderer/RenderQueue.cpp
@@ -67,6 +71,7 @@ target_link_libraries(bot_arena_engine
         spdlog::spdlog
         yaml-cpp::yaml-cpp
         imgui::imgui
+        freetype
         Threads::Threads
 )
 
@@ -103,6 +108,7 @@ add_executable(bot_arena_tests
     tests/test_fixed_timestep.cpp
     tests/test_agent_collision.cpp
     tests/test_steering.cpp
+    tests/test_text_layout.cpp
 
     engine/core/Arena.cpp
     engine/core/JobSystem.cpp

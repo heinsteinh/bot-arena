@@ -4,12 +4,14 @@
 
 #include <cstdlib>
 #include <glm/glm.hpp>
+#include <string>
 
 #include "engine/core/Input.hpp"
 #include "engine/core/Time.hpp"
 #include "engine/platform/sdl/SdlOpenGLContext.hpp"
 #include "engine/platform/sdl/SdlWindow.hpp"
 #include "engine/renderer/Renderer.hpp"
+#include "engine/renderer/text/Font.hpp"
 
 namespace engine {
 
@@ -23,6 +25,9 @@ Application::Application() {
   m_context = std::make_unique<SdlOpenGLContext>(*rawSdlWindow);
   m_jobs = std::make_unique<JobSystem>();
   m_renderer = std::make_unique<Renderer>(*m_jobs);
+
+  m_debugFont =
+      Font::Load(std::string(BOTARENA_ASSET_DIR) + "/fonts/DejaVuSans.ttf", 32);
 
   spdlog::info("Application initialized");
 }
@@ -58,6 +63,15 @@ void Application::run() {
 
     for (auto& layer : m_layers) {
       layer->onRender(*m_renderer, m_window->width(), m_window->height());
+    }
+
+    const float inst = dt > 1e-5f ? 1.0f / dt : 0.0f;
+    m_fps = m_fps <= 0.0f ? inst : m_fps + (inst - m_fps) * 0.1f;
+    if (m_debugFont) {
+      const std::string fpsText =
+          "FPS: " + std::to_string(static_cast<int>(m_fps + 0.5f));
+      m_renderer->drawText(*m_debugFont, fpsText, 8.0f, 24.0f, 1.0f,
+                           glm::vec4(1.0f));
     }
 
     m_renderer->endFrame();

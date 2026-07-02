@@ -12,6 +12,7 @@
     "entt",
     "spdlog",
     "stb",
+    "freetype",
     "catch2",
     "yaml-cpp",
     {
