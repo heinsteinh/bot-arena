@@ -1,0 +1,22 @@
+[remap]
+
+importer="wavefront_obj"
+importer_version=1
+type="Mesh"
+uid="uid://l84mc0sgskxo"
+path="res://.godot/imported/Magnet.obj-36c1594fc1c40289e63a38a679087234.mesh"
+
+[deps]
+
+files=["res://.godot/imported/Magnet.obj-36c1594fc1c40289e63a38a679087234.mesh"]
+
+source_file="res://Models/Stations/Docking/Magnet.obj"
+dest_files=["res://.godot/imported/Magnet.obj-36c1594fc1c40289e63a38a679087234.mesh", "res://.godot/imported/Magnet.obj-36c1594fc1c40289e63a38a679087234.mesh"]
+
+[params]
+
+generate_tangents=true
+scale_mesh=Vector3(1, 1, 1)
+offset_mesh=Vector3(0, 0, 0)
+optimize_mesh=true
+force_disable_mesh_compression=false

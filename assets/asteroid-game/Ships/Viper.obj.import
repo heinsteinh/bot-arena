@@ -1,0 +1,22 @@
+[remap]
+
+importer="wavefront_obj"
+importer_version=1
+type="Mesh"
+uid="uid://eqw6yyp5baku"
+path="res://.godot/imported/Viper.obj-77674c3b54abb78a3a21c609f89f4729.mesh"
+
+[deps]
+
+files=["res://.godot/imported/Viper.obj-77674c3b54abb78a3a21c609f89f4729.mesh"]
+
+source_file="res://Models/Ships/Viper.obj"
+dest_files=["res://.godot/imported/Viper.obj-77674c3b54abb78a3a21c609f89f4729.mesh", "res://.godot/imported/Viper.obj-77674c3b54abb78a3a21c609f89f4729.mesh"]
+
+[params]
+
+generate_tangents=true
+scale_mesh=Vector3(1, 1, 1)
+offset_mesh=Vector3(0, 0, 0)
+optimize_mesh=true
+force_disable_mesh_compression=false

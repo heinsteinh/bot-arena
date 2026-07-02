@@ -1,0 +1,22 @@
+[remap]
+
+importer="wavefront_obj"
+importer_version=1
+type="Mesh"
+uid="uid://3fttbhkpuq2y"
+path="res://.godot/imported/LowPolyStarterSatellite.obj-ce584de853b5cb3a8c0a4524bafdf24f.mesh"
+
+[deps]
+
+files=["res://.godot/imported/LowPolyStarterSatellite.obj-ce584de853b5cb3a8c0a4524bafdf24f.mesh"]
+
+source_file="res://Models/Stations/LowPolyStarterSatellite.obj"
+dest_files=["res://.godot/imported/LowPolyStarterSatellite.obj-ce584de853b5cb3a8c0a4524bafdf24f.mesh", "res://.godot/imported/LowPolyStarterSatellite.obj-ce584de853b5cb3a8c0a4524bafdf24f.mesh"]
+
+[params]
+
+generate_tangents=true
+scale_mesh=Vector3(1, 1, 1)
+offset_mesh=Vector3(0, 0, 0)
+optimize_mesh=true
+force_disable_mesh_compression=false

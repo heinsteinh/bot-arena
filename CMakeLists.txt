@@ -108,6 +108,12 @@ add_executable(models_game
 )
 target_link_libraries(models_game PRIVATE bot_arena_engine)
 
+add_executable(shooter_game
+    games/shooter/main.cpp
+    games/shooter/ShooterGame.cpp
+)
+target_link_libraries(shooter_game PRIVATE bot_arena_engine)
+
 enable_testing()
 
 add_executable(bot_arena_tests
