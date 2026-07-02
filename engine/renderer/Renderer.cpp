@@ -193,6 +193,9 @@ void Renderer::endFrame() {
       m_gbufferFBO->colorAttachment(0), m_gbufferFBO->colorAttachment(1),
       m_gbufferFBO->colorAttachment(2), m_shadowFBO->depthAttachment());
 
+  // Emissive point-light billboards -> HDR scene (additive), before bloom.
+  m_backend->drawLightBillboards(m_pointLightCount);
+
   // Bloom: bright-pass the HDR scene, then ping-pong separable Gaussian blur.
   const int halfW = m_width / 2;
   const int halfH = m_height / 2;
@@ -218,7 +221,9 @@ void Renderer::endFrame() {
 }
 
 void Renderer::setPointLights(const std::vector<PointLight>& lights) {
-  m_backend->setPointLights(static_cast<int>(lights.size()), lights.data());
+  const int count = static_cast<int>(lights.size());
+  m_pointLightCount = count < 32 ? count : 32;
+  m_backend->setPointLights(count, lights.data());
 }
 
 void Renderer::saveScreenshot(const std::string& path, int width, int height) {

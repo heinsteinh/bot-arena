@@ -1192,7 +1192,7 @@ void OpenGLBackend::bloomExtract(uint32_t sceneTex) {
   glUseProgram(m_bloomExtractShader);
   glBindTextureUnit(0, sceneTex);
   glUniform1i(glGetUniformLocation(m_bloomExtractShader, "u_scene"), 0);
-  glUniform1f(glGetUniformLocation(m_bloomExtractShader, "u_threshold"), 0.45f);
+  glUniform1f(glGetUniformLocation(m_bloomExtractShader, "u_threshold"), 1.0f);
   glBindVertexArray(m_quadVao);
   glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
   glBindVertexArray(0);
