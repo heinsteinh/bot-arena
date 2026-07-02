@@ -17,6 +17,7 @@ find_package(spdlog CONFIG REQUIRED)
 find_package(yaml-cpp CONFIG REQUIRED)
 find_package(imgui CONFIG REQUIRED)
 find_package(Stb REQUIRED)
+find_package(freetype CONFIG REQUIRED)
 find_package(Catch2 3 CONFIG REQUIRED)
 find_package(Threads REQUIRED)
 
@@ -67,6 +68,7 @@ target_link_libraries(bot_arena_engine
         spdlog::spdlog
         yaml-cpp::yaml-cpp
         imgui::imgui
+        freetype
         Threads::Threads
 )
 
