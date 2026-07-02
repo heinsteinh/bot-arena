@@ -34,6 +34,22 @@ engine::EmitParams enemyExplosion(int tier) {
   return p;
 }
 
+engine::EmitParams playerExplosion() {
+  engine::EmitParams p;
+  p.count = 100;
+  p.speedMin = 3.0f;
+  p.speedMax = 9.0f;
+  p.direction = {0.0f, 0.0f, 0.0f};
+  p.spread = 1.0f;
+  p.color = {1.0f, 0.85f, 0.4f};  // bright gold-white
+  p.sizeMin = 0.2f;
+  p.sizeMax = 0.5f;
+  p.lifeMin = 0.8f;
+  p.lifeMax = 1.6f;
+  p.gravity = {0.0f, -4.0f, 0.0f};
+  return p;
+}
+
 }  // namespace
 
 namespace shooter {
@@ -250,6 +266,7 @@ void ShooterGame::stepSim(float dt) {
 
   // Death: lose a life and respawn; out of lives resets the run.
   if (ph.current <= 0.0f) {
+    m_explosions.emit(playerExplosion(), playerPos, m_rng);
     --m_lives;
     m_registry.get<Transform>(playerEnt).position = {0.0f, 0.4f, 0.0f};
     ph.current = ph.max;
