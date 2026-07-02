@@ -28,13 +28,16 @@ glm::vec4 diffuseColor(const aiScene* scene, const aiMesh* mesh) {
 }
 
 MeshHandle buildMesh(const aiMesh* mesh, ResourceRegistry& registry) {
-  std::vector<float> verts;  // interleaved px,py,pz,nx,ny,nz
-  verts.reserve(mesh->mNumVertices * 6);
+  std::vector<float> verts;  // interleaved px,py,pz,nx,ny,nz,u,v
+  verts.reserve(mesh->mNumVertices * 8);
   for (unsigned i = 0; i < mesh->mNumVertices; ++i) {
     const aiVector3D& p = mesh->mVertices[i];
     const aiVector3D n =
         mesh->mNormals ? mesh->mNormals[i] : aiVector3D(0.0f, 1.0f, 0.0f);
-    verts.insert(verts.end(), {p.x, p.y, p.z, n.x, n.y, n.z});
+    const aiVector3D uv = mesh->mTextureCoords[0]
+                              ? mesh->mTextureCoords[0][i]
+                              : aiVector3D(0.0f, 0.0f, 0.0f);
+    verts.insert(verts.end(), {p.x, p.y, p.z, n.x, n.y, n.z, uv.x, uv.y});
   }
   std::vector<uint32_t> indices;
   for (unsigned f = 0; f < mesh->mNumFaces; ++f) {
@@ -50,6 +53,7 @@ MeshHandle buildMesh(const aiMesh* mesh, ResourceRegistry& registry) {
   vb->setLayout({
       {ShaderDataType::Float3, "a_position"},
       {ShaderDataType::Float3, "a_normal"},
+      {ShaderDataType::Float2, "a_uv"},
   });
   va->addVertexBuffer(vb);
   va->setIndexBuffer(IndexBuffer::Create(
