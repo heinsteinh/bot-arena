@@ -59,6 +59,15 @@ class Renderer {
   void drawText(const Font& font, std::string_view text, float x, float y,
                 float scale, const glm::vec4& color);
 
+  struct RenderStats {
+    size_t drawCount = 0;
+    int pointLights = 0;
+    size_t laneCount = 0;
+    glm::vec3 cameraPos{0.0f};
+    glm::vec3 cameraFwd{0.0f, 0.0f, -1.0f};
+  };
+  RenderStats stats() const;
+
  private:
   static constexpr std::size_t kLaneArenaBytes = 8 * 1024 * 1024;
   static constexpr size_t kBatchSize = 128;
