@@ -37,7 +37,7 @@ class OpenGLBackend final : public RenderBackend {
   void setAO(uint32_t aoTexture) override;
   void bloomExtract(uint32_t sceneTex) override;
   void bloomBlur(uint32_t src, bool horizontal) override;
-  void drawLightBillboards(int count) override;
+  void drawLightBillboards(int count, uint32_t gWorldPos) override;
   void executeShadow(const std::vector<RenderEntry>& entries,
                      const glm::mat4& lightViewProj, Arena& scratch,
                      const ResourceRegistry& registry) override;

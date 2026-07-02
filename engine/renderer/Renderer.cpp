@@ -194,7 +194,8 @@ void Renderer::endFrame() {
       m_gbufferFBO->colorAttachment(2), m_shadowFBO->depthAttachment());
 
   // Emissive point-light billboards -> HDR scene (additive), before bloom.
-  m_backend->drawLightBillboards(m_pointLightCount);
+  m_backend->drawLightBillboards(m_pointLightCount,
+                                 m_gbufferFBO->colorAttachment(2));
 
   // Bloom: bright-pass the HDR scene, then ping-pong separable Gaussian blur.
   const int halfW = m_width / 2;
