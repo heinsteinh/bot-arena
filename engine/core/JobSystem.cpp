@@ -13,6 +13,7 @@ JobSystem::JobSystem(std::optional<unsigned> workerThreads) {
     n = hw > 1 ? hw - 1 : 0;
   }
   m_workerCount = static_cast<size_t>(n) + 1;  // + main lane
+  m_stats.laneBatches.assign(m_workerCount, 0);
 
   for (unsigned i = 0; i < n; ++i) {
     m_threads.emplace_back([this, i] { workerLoop(i + 1); });
@@ -44,11 +45,19 @@ void JobSystem::workerLoop(size_t lane) {
       fn = m_fn;
     }
     (*fn)(batch.begin, batch.end, lane);
+    ++m_stats.laneBatches[lane];
     {
       std::unique_lock<std::mutex> lk(m_mutex);
       if (--m_remaining == 0) m_done.notify_all();
     }
   }
+}
+
+void JobSystem::resetStats() {
+  m_stats.dispatches = 0;
+  m_stats.batches = 0;
+  m_stats.items = 0;
+  std::fill(m_stats.laneBatches.begin(), m_stats.laneBatches.end(), 0);
 }
 
 void JobSystem::parallelFor(
@@ -61,6 +70,10 @@ void JobSystem::parallelFor(
   for (size_t s = 0; s < count; s += batchSize) {
     batches.push_back({s, std::min(s + batchSize, count)});
   }
+
+  m_stats.dispatches += 1;
+  m_stats.batches += batches.size();
+  m_stats.items += count;
 
   {
     std::unique_lock<std::mutex> lk(m_mutex);
@@ -80,6 +93,7 @@ void JobSystem::parallelFor(
       m_batches.pop_back();
     }
     fn(batch.begin, batch.end, 0);
+    ++m_stats.laneBatches[0];
     {
       std::unique_lock<std::mutex> lk(m_mutex);
       if (--m_remaining == 0) m_done.notify_all();

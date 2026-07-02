@@ -152,6 +152,16 @@ void Renderer::drawText(const Font& font, std::string_view text, float x,
   m_textBatches.push_back({font.atlasRendererID(), std::move(quads), color});
 }
 
+Renderer::RenderStats Renderer::stats() const {
+  RenderStats s;
+  s.drawCount = m_merged.size();
+  s.pointLights = m_pointLightCount;
+  s.laneCount = m_lanes.size();
+  s.cameraPos = glm::vec3(m_camera.cameraPosition);
+  s.cameraFwd = glm::normalize(-glm::vec3(glm::inverse(m_camera.view)[2]));
+  return s;
+}
+
 void Renderer::generateMeshes(
     size_t count, const std::function<void(RenderQueue&, size_t, size_t)>& fn) {
   m_jobs.parallelFor(count, kBatchSize,

@@ -6,7 +6,7 @@
 
 namespace engine {
 
-enum class Key { Unknown, Escape, W, A, S, D, Q, E, Space, LeftShift };
+enum class Key { Unknown, Escape, W, A, S, D, Q, E, Space, LeftShift, F1 };
 
 enum class MouseButton { Left, Right, Middle };
 

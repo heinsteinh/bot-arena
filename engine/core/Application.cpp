@@ -6,7 +6,9 @@
 #include <glm/glm.hpp>
 #include <string>
 
+#include "engine/core/DebugOverlay.hpp"
 #include "engine/core/Input.hpp"
+#include "engine/core/JobSystem.hpp"
 #include "engine/core/Time.hpp"
 #include "engine/platform/sdl/SdlOpenGLContext.hpp"
 #include "engine/platform/sdl/SdlWindow.hpp"
@@ -53,6 +55,9 @@ void Application::run() {
 
     m_window->pollEvents();
 
+    m_jobs->resetStats();
+    if (Input::wasKeyPressed(Key::F1)) m_showDebug = !m_showDebug;
+
     const float dt = Time::deltaTime();
 
     for (auto& layer : m_layers) {
@@ -67,11 +72,29 @@ void Application::run() {
 
     const float inst = dt > 1e-5f ? 1.0f / dt : 0.0f;
     m_fps = m_fps <= 0.0f ? inst : m_fps + (inst - m_fps) * 0.1f;
-    if (m_debugFont) {
-      const std::string fpsText =
-          "FPS: " + std::to_string(static_cast<int>(m_fps + 0.5f));
-      m_renderer->drawText(*m_debugFont, fpsText, 8.0f, 24.0f, 1.0f,
-                           glm::vec4(1.0f));
+    if (m_showDebug && m_debugFont) {
+      DebugStats ds;
+      ds.fps = static_cast<int>(m_fps + 0.5f);
+      ds.frameMs = m_fps > 0.0f ? 1000.0f / m_fps : 0.0f;
+      ds.width = m_window->width();
+      ds.height = m_window->height();
+      const Renderer::RenderStats rs = m_renderer->stats();
+      ds.cameraPos = rs.cameraPos;
+      ds.cameraFwd = rs.cameraFwd;
+      ds.drawCount = rs.drawCount;
+      ds.pointLights = rs.pointLights;
+      ds.laneCount = rs.laneCount;
+      const JobSystem::Stats& js = m_jobs->stats();
+      ds.jobDispatches = js.dispatches;
+      ds.jobBatches = js.batches;
+      ds.jobItems = js.items;
+      ds.laneBatches = js.laneBatches;
+      const std::vector<std::string> lines = formatDebugLines(ds);
+      for (size_t i = 0; i < lines.size(); ++i) {
+        m_renderer->drawText(*m_debugFont, lines[i], 8.0f,
+                             20.0f + static_cast<float>(i) * 22.0f, 0.7f,
+                             glm::vec4(1.0f));
+      }
     }
 
     m_renderer->endFrame();

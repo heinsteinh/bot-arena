@@ -4,6 +4,7 @@
 #include <memory>
 #include <vector>
 
+#include "engine/core/DebugOverlay.hpp"
 #include "engine/core/GraphicsContext.hpp"
 #include "engine/core/JobSystem.hpp"
 #include "engine/core/Layer.hpp"
@@ -29,6 +30,7 @@ class Application {
 
   Ref<Font> m_debugFont;
   float m_fps = 0.0f;
+  bool m_showDebug = true;
 
   std::vector<std::unique_ptr<Layer>> m_layers;
 };

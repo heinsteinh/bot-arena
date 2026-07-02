@@ -28,6 +28,8 @@ Key mapKey(SDL_Keycode key) {
       return Key::Space;
     case SDLK_LSHIFT:
       return Key::LeftShift;
+    case SDLK_F1:
+      return Key::F1;
     default:
       return Key::Unknown;
   }
