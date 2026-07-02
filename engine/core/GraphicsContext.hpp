@@ -9,6 +9,7 @@ class GraphicsContext {
 
   virtual void makeCurrent() = 0;
   virtual void setVSync(bool enabled) = 0;
+  virtual void* nativeContext() const = 0;
 };
 
 }  // namespace engine

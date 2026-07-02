@@ -16,6 +16,7 @@ class ParticlesGame final : public engine::Layer {
   void onAttach() override;
   void onUpdate(float dt) override;
   void onRender(engine::Renderer& renderer, int width, int height) override;
+  void onImGuiRender() override;
 
  private:
   void stepSim(float dt);
@@ -35,6 +36,10 @@ class ParticlesGame final : public engine::Layer {
   engine::ParticleSystem m_burst;
   engine::ParticleSystem m_fountain;
   engine::ParticleSystem m_smoke;
+
+  engine::ParticleSystem m_editor;
+  engine::EmitParams m_editorParams;
+  int m_selectedPreset = 1;  // default: Fountain
 };
 
 }  // namespace particles

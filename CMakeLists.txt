@@ -44,6 +44,8 @@ add_library(bot_arena_engine STATIC
 
     engine/particles/ParticleSystem.cpp
 
+    engine/imgui/ImGuiLayer.cpp
+
     engine/renderer/RenderBackend.cpp
     engine/renderer/RenderQueue.cpp
     engine/renderer/Renderer.cpp

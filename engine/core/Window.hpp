@@ -1,6 +1,8 @@
 #ifndef ENGINE_CORE_WINDOW_HPP
 #define ENGINE_CORE_WINDOW_HPP
 
+#include <functional>
+
 namespace engine {
 
 class Window {
@@ -15,6 +17,10 @@ class Window {
   virtual int height() const = 0;
 
   virtual void* nativeHandle() const = 0;
+
+  // Called for each OS event with the native event pointer; returning true
+  // marks the event consumed (engine Input is skipped for it).
+  virtual void setEventCallback(std::function<bool(void*)> callback) = 0;
 };
 
 }  // namespace engine

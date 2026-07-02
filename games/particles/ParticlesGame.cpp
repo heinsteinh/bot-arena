@@ -1,5 +1,7 @@
 #include "games/particles/ParticlesGame.hpp"
 
+#include <imgui.h>
+
 #include <glm/gtc/matrix_transform.hpp>
 #include <vector>
 
@@ -58,6 +60,62 @@ engine::EmitParams smokeParams() {
   p.gravity = {0.0f, 0.3f, 0.0f};  // slight rise
   return p;
 }
+engine::EmitParams jetParams() {
+  engine::EmitParams p;
+  p.count = 4;
+  p.speedMin = 8.0f;
+  p.speedMax = 11.0f;
+  p.direction = {0.0f, 1.0f, 0.0f};
+  p.spread = 0.05f;
+  p.color = {0.6f, 0.9f, 1.0f};
+  p.sizeMin = 0.04f;
+  p.sizeMax = 0.07f;
+  p.lifeMin = 0.6f;
+  p.lifeMax = 1.0f;
+  p.gravity = {0.0f, -5.0f, 0.0f};
+  return p;
+}
+engine::EmitParams novaParams() {
+  engine::EmitParams p;
+  p.count = 60;
+  p.speedMin = 6.0f;
+  p.speedMax = 10.0f;
+  p.direction = {0.0f, 0.0f, 0.0f};  // radial
+  p.spread = 1.0f;
+  p.color = {1.0f, 0.8f, 0.3f};  // gold
+  p.sizeMin = 0.08f;
+  p.sizeMax = 0.15f;
+  p.lifeMin = 0.7f;
+  p.lifeMax = 1.2f;
+  p.gravity = {0.0f, -3.0f, 0.0f};
+  return p;
+}
+engine::EmitParams drizzleParams() {
+  engine::EmitParams p;
+  p.count = 5;
+  p.speedMin = 3.0f;
+  p.speedMax = 5.0f;
+  p.direction = {0.0f, 1.0f, 0.0f};
+  p.spread = 0.4f;
+  p.color = {0.4f, 0.85f, 0.6f};
+  p.sizeMin = 0.05f;
+  p.sizeMax = 0.09f;
+  p.lifeMin = 1.2f;
+  p.lifeMax = 2.0f;
+  p.gravity = {0.0f, -9.0f, 0.0f};
+  return p;
+}
+
+struct NamedPreset {
+  const char* name;
+  engine::EmitParams (*make)();
+};
+const NamedPreset kPresets[] = {
+    {"Burst", burstParams}, {"Fountain", fountainParams},
+    {"Smoke", smokeParams}, {"Jet", jetParams},
+    {"Nova", novaParams},   {"Drizzle", drizzleParams},
+};
+constexpr int kPresetCount = 6;
 }  // namespace
 
 void ParticlesGame::onAttach() {
@@ -70,6 +128,8 @@ void ParticlesGame::onAttach() {
     m_bouncers.push_back(
         {{posD(m_rng), 1.0f, posD(m_rng)}, {velD(m_rng), 0.0f, velD(m_rng)}});
   }
+
+  m_editorParams = kPresets[m_selectedPreset].make();
 
   for (int i = 0; i < 90; ++i) stepSim(1.0f / 60.0f);
 }
@@ -106,10 +166,12 @@ void ParticlesGame::stepSim(float dt) {
 
   m_fountain.emit(fountainParams(), {-2.0f, 0.2f, 0.0f}, m_rng);
   m_smoke.emit(smokeParams(), {2.0f, 0.2f, 0.0f}, m_rng);
+  m_editor.emit(m_editorParams, {0.0f, 0.5f, 0.0f}, m_rng);
 
   m_burst.update(dt);
   m_fountain.update(dt);
   m_smoke.update(dt);
+  m_editor.update(dt);
 }
 
 void ParticlesGame::onRender(engine::Renderer& renderer, int width,
@@ -160,7 +222,31 @@ void ParticlesGame::onRender(engine::Renderer& renderer, int width,
   submit(m_burst);
   submit(m_fountain);
   submit(m_smoke);
+  submit(m_editor);
   renderer.submitParticles(instances);
+}
+
+void ParticlesGame::onImGuiRender() {
+  ImGui::SetNextWindowPos(ImVec2(20, 250), ImGuiCond_FirstUseEver);
+  ImGui::SetNextWindowSize(ImVec2(340, 320), ImGuiCond_FirstUseEver);
+  ImGui::Begin("Particle Editor");
+  const char* names[kPresetCount];
+  for (int i = 0; i < kPresetCount; ++i) names[i] = kPresets[i].name;
+  if (ImGui::Combo("Type", &m_selectedPreset, names, kPresetCount)) {
+    m_editorParams = kPresets[m_selectedPreset].make();
+  }
+  ImGui::SliderInt("Count", &m_editorParams.count, 0, 100);
+  ImGui::SliderFloat("Speed min", &m_editorParams.speedMin, 0.0f, 12.0f);
+  ImGui::SliderFloat("Speed max", &m_editorParams.speedMax, 0.0f, 12.0f);
+  ImGui::SliderFloat("Spread", &m_editorParams.spread, 0.0f, 1.0f);
+  ImGui::ColorEdit3("Color", &m_editorParams.color.x);
+  ImGui::SliderFloat("Size min", &m_editorParams.sizeMin, 0.01f, 0.5f);
+  ImGui::SliderFloat("Size max", &m_editorParams.sizeMax, 0.01f, 0.5f);
+  ImGui::SliderFloat("Life min", &m_editorParams.lifeMin, 0.1f, 3.0f);
+  ImGui::SliderFloat("Life max", &m_editorParams.lifeMax, 0.1f, 3.0f);
+  ImGui::SliderFloat3("Gravity", &m_editorParams.gravity.x, -10.0f, 10.0f);
+  ImGui::Text("Live particles: %d", static_cast<int>(m_editor.size()));
+  ImGui::End();
 }
 
 }  // namespace particles

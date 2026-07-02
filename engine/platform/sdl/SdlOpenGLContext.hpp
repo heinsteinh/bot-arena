@@ -15,6 +15,7 @@ class SdlOpenGLContext final : public GraphicsContext {
 
   void makeCurrent() override;
   void setVSync(bool enabled) override;
+  void* nativeContext() const override { return m_context; }
 
  private:
   SDL_Window* m_window = nullptr;
