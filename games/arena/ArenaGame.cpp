@@ -46,6 +46,9 @@ void ArenaGame::spawnEntities() {
 }
 
 void ArenaGame::onUpdate(float dt) {
+  m_camera.update(
+      dt);  // apply setTarget/setOrbit (and mouse orbit) to the view
+
   m_accumulator += dt;
   const float step = 1.0f / 60.0f;
   const engine::FixedStep fs = engine::fixedTimestep(m_accumulator, step, 5);
@@ -67,14 +70,36 @@ void ArenaGame::stepSim(float dt) {
                                          : glm::vec3(0.0f);
   }
 
-  // Integrate + wall-bounce every moving agent.
+  // Integrate.
+  auto view = m_registry.view<Transform, Velocity>();
+  for (const entt::entity e : view) {
+    view.get<Transform>(e).position += view.get<Velocity>(e).value * dt;
+  }
+
+  // Agent-vs-agent collision (O(n^2)).
+  std::vector<entt::entity> agents(view.begin(), view.end());
+  for (std::size_t i = 0; i < agents.size(); ++i) {
+    for (std::size_t j = i + 1; j < agents.size(); ++j) {
+      Transform& ta = view.get<Transform>(agents[i]);
+      Velocity& va = view.get<Velocity>(agents[i]);
+      Transform& tb = view.get<Transform>(agents[j]);
+      Velocity& vb = view.get<Velocity>(agents[j]);
+      const engine::AgentPair r = engine::resolveAgentPair(
+          ta.position, va.value, ta.scale, tb.position, vb.value, tb.scale);
+      ta.position = r.posA;
+      va.value = r.velA;
+      tb.position = r.posB;
+      vb.value = r.velB;
+    }
+  }
+
+  // Wall bounce (unchanged) -- last, so separation never leaves an agent
+  // outside the arena.
   const glm::vec3 boundsMin(-4.75f, -1.0f, -4.75f);
   const glm::vec3 boundsMax(4.75f, 10.0f, 4.75f);
-  auto view = m_registry.view<Transform, Velocity>();
   for (const entt::entity e : view) {
     Transform& tr = view.get<Transform>(e);
     Velocity& v = view.get<Velocity>(e);
-    tr.position += v.value * dt;
     const engine::WallBounce wb = engine::resolveWallBounce(
         tr.position, v.value, boundsMin, boundsMax, tr.scale);
     tr.position = wb.position;
