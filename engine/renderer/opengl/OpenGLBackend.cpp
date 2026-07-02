@@ -149,6 +149,10 @@ unsigned int createLightingProgram() {
     uniform sampler2D u_gWorldPos;
     uniform sampler2DShadow u_shadowMap;
     uniform samplerCube u_envMap;
+    uniform samplerCube u_irradiance;
+    uniform samplerCube u_prefilter;
+    uniform sampler2D u_brdfLUT;
+    uniform int u_prefilterMips;
 
     layout(std140, binding = 0) uniform Camera {
       mat4 u_view;
@@ -202,6 +206,10 @@ unsigned int createLightingProgram() {
     vec3 fresnelSchlick(float cosT, vec3 F0) {
       return F0 + (1.0 - F0) * pow(clamp(1.0 - cosT, 0.0, 1.0), 5.0);
     }
+    vec3 fresnelSchlickRoughness(float cosT, vec3 F0, float rough) {
+      return F0 + (max(vec3(1.0 - rough), F0) - F0) *
+                      pow(clamp(1.0 - cosT, 0.0, 1.0), 5.0);
+    }
 
     vec3 brdf(vec3 N, vec3 V, vec3 L, vec3 albedo, float metallic,
               float rough, vec3 F0, vec3 radiance) {
@@ -236,10 +244,17 @@ unsigned int createLightingProgram() {
       vec3 V = normalize(u_cameraPos.xyz - worldPos);
       vec3 F0 = mix(vec3(0.04), albedo, metallic);
 
-      // Constant ambient (no IBL): Fresnel-weighted so metals reflect too.
-      vec3 Famb = fresnelSchlick(max(dot(N, V), 0.0), F0);
+      // Ambient: split-sum image-based lighting.
+      float NoV = max(dot(N, V), 0.0);
+      vec3 Famb = fresnelSchlickRoughness(NoV, F0, rough);
       vec3 kdAmb = (vec3(1.0) - Famb) * (1.0 - metallic);
-      vec3 color = (kdAmb * albedo + Famb) * 0.12;
+      vec3 diffuseIBL = texture(u_irradiance, N).rgb * albedo;
+      vec3 R = reflect(-V, N);
+      vec3 prefiltered =
+          textureLod(u_prefilter, R, rough * float(u_prefilterMips - 1)).rgb;
+      vec2 ab = texture(u_brdfLUT, vec2(NoV, rough)).rg;
+      vec3 specularIBL = prefiltered * (Famb * ab.x + ab.y);
+      vec3 color = kdAmb * diffuseIBL + specularIBL;
 
       // Directional light (shadowed).
       vec3 L = normalize(u_lightDir.xyz);

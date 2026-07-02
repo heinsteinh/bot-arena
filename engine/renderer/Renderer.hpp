@@ -75,6 +75,13 @@ class Renderer {
   static constexpr uint32_t kShadowSize = 2048;
   Ref<TextureCube> m_envMap;
   static constexpr uint32_t kEnvSize = 512;
+  Ref<TextureCube> m_irradianceMap;
+  Ref<TextureCube> m_prefilterMap;
+  Ref<Framebuffer> m_brdfFBO;
+  static constexpr uint32_t kIrradianceSize = 32;
+  static constexpr uint32_t kPrefilterSize = 128;
+  static constexpr int kPrefilterMips = 5;
+  static constexpr uint32_t kBrdfSize = 512;
   int m_width = 0;
   int m_height = 0;
   MeshHandle m_cubeMesh = 0;
