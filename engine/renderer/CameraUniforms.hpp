@@ -11,6 +11,7 @@ struct CameraUniforms {
   glm::mat4 projection{1.0f};
   glm::mat4 viewProjection{1.0f};
   glm::vec4 cameraPosition{0.0f};
+  glm::mat4 invViewProjection{1.0f};
 };
 
 inline CameraUniforms makeCameraUniforms(const glm::mat4& view,
@@ -20,6 +21,7 @@ inline CameraUniforms makeCameraUniforms(const glm::mat4& view,
   u.projection = projection;
   u.viewProjection = projection * view;
   u.cameraPosition = glm::vec4(glm::vec3(glm::inverse(view)[3]), 1.0f);
+  u.invViewProjection = glm::inverse(u.viewProjection);
   return u;
 }
 

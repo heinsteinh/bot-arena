@@ -22,6 +22,9 @@ class OpenGLBackend final : public RenderBackend {
   void setPointLights(int count, const PointLight* lights) override;
   void lightingPass(uint32_t gAlbedo, uint32_t gNormal, uint32_t gWorldPos,
                     uint32_t shadowMap) override;
+  void renderEnvironment(uint32_t cubemap, int size,
+                         const glm::vec3& sunDir) override;
+  void setEnvironment(uint32_t envCubemap) override;
   void executeShadow(const std::vector<RenderEntry>& entries,
                      const glm::mat4& lightViewProj, Arena& scratch,
                      const ResourceRegistry& registry) override;
@@ -42,6 +45,9 @@ class OpenGLBackend final : public RenderBackend {
 
   unsigned int m_lightingShader = 0;
   Ref<UniformBuffer> m_pointLightUBO;
+
+  unsigned int m_skyShader = 0;
+  unsigned int m_envMap = 0;
 };
 
 }  // namespace engine

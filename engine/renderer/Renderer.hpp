@@ -19,6 +19,7 @@
 #include "engine/renderer/RenderPass.hpp"
 #include "engine/renderer/RenderQueue.hpp"
 #include "engine/renderer/ResourceRegistry.hpp"
+#include "engine/renderer/TextureCube.hpp"
 
 namespace engine {
 
@@ -72,6 +73,8 @@ class Renderer {
   glm::vec3 m_lightDir{glm::normalize(glm::vec3(0.4f, 0.8f, 0.3f))};
   LightUniforms m_light;
   static constexpr uint32_t kShadowSize = 2048;
+  Ref<TextureCube> m_envMap;
+  static constexpr uint32_t kEnvSize = 512;
   int m_width = 0;
   int m_height = 0;
   MeshHandle m_cubeMesh = 0;

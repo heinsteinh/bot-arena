@@ -136,12 +136,14 @@ unsigned int createLightingProgram() {
     uniform sampler2D u_gNormal;
     uniform sampler2D u_gWorldPos;
     uniform sampler2DShadow u_shadowMap;
+    uniform samplerCube u_envMap;
 
     layout(std140, binding = 0) uniform Camera {
       mat4 u_view;
       mat4 u_projection;
       mat4 u_viewProjection;
       vec4 u_cameraPos;
+      mat4 u_invViewProjection;
     };
 
     layout(std140, binding = 1) uniform Light {
@@ -205,8 +207,11 @@ unsigned int createLightingProgram() {
     void main() {
       vec4 nSample = texture(u_gNormal, v_uv);
       vec3 N = nSample.xyz;
-      if (dot(N, N) < 0.5) {          // no geometry: background
-        fragColor = vec4(0.02, 0.02, 0.03, 1.0);
+      if (dot(N, N) < 0.5) {          // no geometry: skybox
+        vec4 clip = vec4(v_uv * 2.0 - 1.0, 1.0, 1.0);
+        vec4 world = u_invViewProjection * clip;
+        vec3 dir = normalize(world.xyz / world.w - u_cameraPos.xyz);
+        fragColor = vec4(texture(u_envMap, dir).rgb, 1.0);
         return;
       }
       N = normalize(N);
@@ -263,6 +268,58 @@ unsigned int createLightingProgram() {
   return program;
 }
 
+unsigned int createSkyProgram() {
+  constexpr const char* vs = R"(
+    #version 460 core
+    layout(location = 0) in vec2 a_position;   // unit quad [0,1]^2
+    out vec2 v_uv;
+    void main() {
+      v_uv = a_position;
+      gl_Position = vec4(a_position * 2.0 - 1.0, 0.0, 1.0);
+    }
+  )";
+  constexpr const char* fs = R"(
+    #version 460 core
+    in vec2 v_uv;
+    out vec4 fragColor;
+    uniform vec3 u_forward;
+    uniform vec3 u_right;
+    uniform vec3 u_up;
+    uniform vec3 u_sunDir;
+    void main() {
+      vec2 c = v_uv * 2.0 - 1.0;
+      vec3 dir = normalize(u_forward + c.x * u_right + c.y * u_up);
+      float h = dir.y;
+      vec3 zenith = vec3(0.08, 0.26, 0.75);
+      vec3 horizon = vec3(0.52, 0.66, 0.92);
+      vec3 ground = vec3(0.12, 0.10, 0.09);
+      vec3 sky = (h > 0.0)
+          ? mix(horizon, zenith, pow(clamp(h, 0.0, 1.0), 0.5))
+          : mix(horizon, ground, clamp(-h * 3.0, 0.0, 1.0));
+      float s = max(dot(dir, normalize(u_sunDir)), 0.0);
+      sky += vec3(1.0, 0.95, 0.85) * pow(s, 512.0) * 30.0;
+      sky += vec3(1.0, 0.9, 0.7) * pow(s, 8.0) * 0.3;
+      fragColor = vec4(sky, 1.0);
+    }
+  )";
+  const unsigned int v = compileShader(GL_VERTEX_SHADER, vs);
+  const unsigned int f = compileShader(GL_FRAGMENT_SHADER, fs);
+  const unsigned int program = glCreateProgram();
+  glAttachShader(program, v);
+  glAttachShader(program, f);
+  glLinkProgram(program);
+  glDeleteShader(v);
+  glDeleteShader(f);
+  int ok = 0;
+  glGetProgramiv(program, GL_LINK_STATUS, &ok);
+  if (!ok) {
+    char log[1024];
+    glGetProgramInfoLog(program, sizeof(log), nullptr, log);
+    throw std::runtime_error(log);
+  }
+  return program;
+}
+
 }  // namespace
 
 OpenGLBackend::OpenGLBackend() {
@@ -287,12 +344,16 @@ OpenGLBackend::OpenGLBackend() {
 
   m_lightingShader = createLightingProgram();
   m_pointLightUBO = UniformBuffer::Create(sizeof(GpuPointLights), 2);
+
+  m_skyShader = createSkyProgram();
+  glEnable(GL_TEXTURE_CUBE_MAP_SEAMLESS);
 }
 
 OpenGLBackend::~OpenGLBackend() {
   if (m_blitShader) glDeleteProgram(m_blitShader);
   if (m_shadowShader) glDeleteProgram(m_shadowShader);
   if (m_lightingShader) glDeleteProgram(m_lightingShader);
+  if (m_skyShader) glDeleteProgram(m_skyShader);
   if (m_quadVbo) glDeleteBuffers(1, &m_quadVbo);
   if (m_quadVao) glDeleteVertexArrays(1, &m_quadVao);
 }
@@ -395,13 +456,60 @@ void OpenGLBackend::lightingPass(uint32_t gAlbedo, uint32_t gNormal,
   glBindTextureUnit(1, gNormal);
   glBindTextureUnit(2, gWorldPos);
   glBindTextureUnit(3, shadowMap);
+  glBindTextureUnit(4, m_envMap);
   glUniform1i(glGetUniformLocation(m_lightingShader, "u_gAlbedo"), 0);
   glUniform1i(glGetUniformLocation(m_lightingShader, "u_gNormal"), 1);
   glUniform1i(glGetUniformLocation(m_lightingShader, "u_gWorldPos"), 2);
   glUniform1i(glGetUniformLocation(m_lightingShader, "u_shadowMap"), 3);
+  glUniform1i(glGetUniformLocation(m_lightingShader, "u_envMap"), 4);
   glBindVertexArray(m_quadVao);
   glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
   glBindVertexArray(0);
+}
+
+void OpenGLBackend::renderEnvironment(uint32_t cubemap, int size,
+                                      const glm::vec3& sunDir) {
+  struct Face {
+    glm::vec3 forward, right, up;
+  };
+  const Face faces[6] = {
+      {{1, 0, 0}, {0, 0, -1}, {0, -1, 0}},   // +X
+      {{-1, 0, 0}, {0, 0, 1}, {0, -1, 0}},   // -X
+      {{0, 1, 0}, {1, 0, 0}, {0, 0, 1}},     // +Y
+      {{0, -1, 0}, {1, 0, 0}, {0, 0, -1}},   // -Y
+      {{0, 0, 1}, {1, 0, 0}, {0, -1, 0}},    // +Z
+      {{0, 0, -1}, {-1, 0, 0}, {0, -1, 0}},  // -Z
+  };
+  const glm::vec3 sun = glm::normalize(sunDir);
+
+  unsigned int fbo = 0;
+  glCreateFramebuffers(1, &fbo);
+  glDisable(GL_DEPTH_TEST);
+  glUseProgram(m_skyShader);
+  glUniform3fv(glGetUniformLocation(m_skyShader, "u_sunDir"), 1,
+               glm::value_ptr(sun));
+  const int fwdLoc = glGetUniformLocation(m_skyShader, "u_forward");
+  const int rightLoc = glGetUniformLocation(m_skyShader, "u_right");
+  const int upLoc = glGetUniformLocation(m_skyShader, "u_up");
+
+  glViewport(0, 0, size, size);
+  glBindVertexArray(m_quadVao);
+  for (int i = 0; i < 6; ++i) {
+    glNamedFramebufferTextureLayer(fbo, GL_COLOR_ATTACHMENT0, cubemap, 0, i);
+    glNamedFramebufferDrawBuffer(fbo, GL_COLOR_ATTACHMENT0);
+    glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+    glUniform3fv(fwdLoc, 1, glm::value_ptr(faces[i].forward));
+    glUniform3fv(rightLoc, 1, glm::value_ptr(faces[i].right));
+    glUniform3fv(upLoc, 1, glm::value_ptr(faces[i].up));
+    glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+  }
+  glBindVertexArray(0);
+  glBindFramebuffer(GL_FRAMEBUFFER, 0);
+  glDeleteFramebuffers(1, &fbo);
+}
+
+void OpenGLBackend::setEnvironment(uint32_t envCubemap) {
+  m_envMap = envCubemap;
 }
 
 void OpenGLBackend::blit(uint32_t sourceColorTexture,
