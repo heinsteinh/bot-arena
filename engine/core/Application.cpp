@@ -1,5 +1,8 @@
 #include "engine/core/Application.hpp"
 
+#include <SDL3/SDL.h>
+#include <imgui.h>
+#include <imgui_impl_sdl3.h>
 #include <spdlog/spdlog.h>
 
 #include <cstdlib>
@@ -31,10 +34,33 @@ Application::Application() {
   m_debugFont =
       Font::Load(std::string(BOTARENA_ASSET_DIR) + "/fonts/DejaVuSans.ttf", 32);
 
+  m_imguiLayer = std::make_unique<ImGuiLayer>(m_window->nativeHandle(),
+                                              m_context->nativeContext());
+  m_imguiLayer->onAttach();
+  m_window->setEventCallback([](void* e) -> bool {
+    SDL_Event* ev = static_cast<SDL_Event*>(e);
+    ImGui_ImplSDL3_ProcessEvent(ev);
+    const ImGuiIO& io = ImGui::GetIO();
+    switch (ev->type) {
+      case SDL_EVENT_MOUSE_MOTION:
+      case SDL_EVENT_MOUSE_BUTTON_DOWN:
+      case SDL_EVENT_MOUSE_BUTTON_UP:
+      case SDL_EVENT_MOUSE_WHEEL:
+        return io.WantCaptureMouse;
+      case SDL_EVENT_KEY_DOWN:
+      case SDL_EVENT_KEY_UP:
+      case SDL_EVENT_TEXT_INPUT:
+        return io.WantCaptureKeyboard;
+      default:
+        return false;
+    }
+  });
+
   spdlog::info("Application initialized");
 }
 
 Application::~Application() {
+  if (m_imguiLayer) m_imguiLayer->onDetach();
   for (auto it = m_layers.rbegin(); it != m_layers.rend(); ++it) {
     (*it)->onDetach();
   }
@@ -98,6 +124,12 @@ void Application::run() {
     }
 
     m_renderer->endFrame();
+
+    m_imguiLayer->begin();
+    for (auto& layer : m_layers) {
+      layer->onImGuiRender();
+    }
+    m_imguiLayer->end();
 
     // Capture the back buffer before it is swapped out, then stop.
     if (screenshotPath) {

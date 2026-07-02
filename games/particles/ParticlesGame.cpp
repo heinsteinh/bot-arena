@@ -1,5 +1,7 @@
 #include "games/particles/ParticlesGame.hpp"
 
+#include <imgui.h>
+
 #include <glm/gtc/matrix_transform.hpp>
 #include <vector>
 
@@ -161,6 +163,14 @@ void ParticlesGame::onRender(engine::Renderer& renderer, int width,
   submit(m_fountain);
   submit(m_smoke);
   renderer.submitParticles(instances);
+}
+
+void ParticlesGame::onImGuiRender() {
+  ImGui::SetNextWindowPos(ImVec2(20, 250), ImGuiCond_FirstUseEver);
+  ImGui::SetNextWindowSize(ImVec2(320, 130), ImGuiCond_FirstUseEver);
+  ImGui::Begin("Particle Editor");
+  ImGui::Text("ImGui is live.");
+  ImGui::End();
 }
 
 }  // namespace particles

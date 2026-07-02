@@ -3,6 +3,7 @@
 
 #include <SDL3/SDL.h>
 
+#include <functional>
 #include <string>
 
 #include "engine/core/Window.hpp"
@@ -22,10 +23,14 @@ class SdlWindow final : public Window {
   int height() const override;
 
   void* nativeHandle() const override;
+  void setEventCallback(std::function<bool(void*)> callback) override {
+    m_eventCallback = std::move(callback);
+  }
 
  private:
   SDL_Window* m_window = nullptr;
   bool m_shouldClose = false;
+  std::function<bool(void*)> m_eventCallback;
 };
 
 }  // namespace engine

@@ -85,6 +85,8 @@ void SdlWindow::pollEvents() {
       m_shouldClose = true;
     }
 
+    if (m_eventCallback && m_eventCallback(&event)) continue;
+
     if (event.type == SDL_EVENT_KEY_DOWN) {
       const Key key = mapKey(event.key.key);
 

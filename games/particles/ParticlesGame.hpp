@@ -16,6 +16,7 @@ class ParticlesGame final : public engine::Layer {
   void onAttach() override;
   void onUpdate(float dt) override;
   void onRender(engine::Renderer& renderer, int width, int height) override;
+  void onImGuiRender() override;
 
  private:
   void stepSim(float dt);
