@@ -1,17 +1,40 @@
 #include "games/arena/ArenaGame.hpp"
 
 #include <glm/gtc/matrix_transform.hpp>
+#include <random>
 #include <vector>
 
 #include "engine/renderer/MeshRenderer.hpp"
 #include "engine/renderer/PointLight.hpp"
 #include "engine/renderer/ResourceRegistry.hpp"
+#include "games/arena/Components.hpp"
 
 namespace arena {
 
 void ArenaGame::onAttach() {
   m_camera.setTarget({0.0f, 0.5f, 0.0f});
-  m_camera.setOrbit(45.0f, 40.0f, 16.0f);
+  m_camera.setOrbit(45.0f, 55.0f, 18.0f);
+  spawnEntities();
+}
+
+void ArenaGame::spawnEntities() {
+  const entt::entity player = m_registry.create();
+  m_registry.emplace<Transform>(player, glm::vec3(0.0f, 0.3f, 0.0f), 0.4f);
+  m_registry.emplace<Velocity>(player, glm::vec3(0.0f));
+  m_registry.emplace<Player>(player);
+
+  std::uniform_real_distribution<float> posD(-4.0f, 4.0f);
+  std::uniform_real_distribution<float> velD(-1.0f, 1.0f);
+  for (int i = 0; i < 48; ++i) {
+    const entt::entity b = m_registry.create();
+    m_registry.emplace<Transform>(b, glm::vec3(posD(m_rng), 0.3f, posD(m_rng)),
+                                  0.3f);
+    glm::vec3 v(velD(m_rng), 0.0f, velD(m_rng));
+    v = glm::length(v) > 0.001f ? glm::normalize(v) * 2.0f
+                                : glm::vec3(2.0f, 0.0f, 0.0f);
+    m_registry.emplace<Velocity>(b, v);
+    m_registry.emplace<Bot>(b);
+  }
 }
 
 void ArenaGame::onRender(engine::Renderer& renderer, int width, int height) {
@@ -21,6 +44,16 @@ void ArenaGame::onRender(engine::Renderer& renderer, int width, int height) {
         {{0.7f, 0.7f, 0.7f, 1.0f}, 0.0f, 0.5f, s});
     m_groundMat = renderer.registry().registerMaterial(
         {{0.3f, 0.3f, 0.33f, 1.0f}, 0.0f, 0.85f, s});
+    m_playerMat = renderer.registry().registerMaterial(
+        {{0.95f, 0.95f, 1.0f, 1.0f}, 0.1f, 0.25f, s});
+    m_botMats[0] = renderer.registry().registerMaterial(
+        {{0.9f, 0.3f, 0.2f, 1.0f}, 0.0f, 0.4f, s});
+    m_botMats[1] = renderer.registry().registerMaterial(
+        {{0.2f, 0.6f, 0.9f, 1.0f}, 0.0f, 0.4f, s});
+    m_botMats[2] = renderer.registry().registerMaterial(
+        {{0.4f, 0.85f, 0.3f, 1.0f}, 0.0f, 0.4f, s});
+    m_botMats[3] = renderer.registry().registerMaterial(
+        {{0.9f, 0.75f, 0.2f, 1.0f}, 1.0f, 0.3f, s});
     m_resourcesReady = true;
   }
 
@@ -61,6 +94,17 @@ void ArenaGame::onRender(engine::Renderer& renderer, int width, int height) {
   glm::mat4 ground = glm::translate(glm::mat4(1.0f), {0.0f, -0.05f, 0.0f});
   ground = glm::scale(ground, {20.0f, 0.05f, 20.0f});
   meshes.submit(cube, m_groundMat, ground);
+
+  int idx = 0;
+  auto view = m_registry.view<Transform>();
+  for (const entt::entity e : view) {
+    const Transform& tr = view.get<Transform>(e);
+    const engine::MaterialHandle mat =
+        m_registry.all_of<Player>(e) ? m_playerMat : m_botMats[(idx++) % 4];
+    glm::mat4 m = glm::translate(glm::mat4(1.0f), tr.position);
+    m = glm::scale(m, glm::vec3(tr.scale));
+    meshes.submit(cube, mat, m);
+  }
 }
 
 }  // namespace arena
