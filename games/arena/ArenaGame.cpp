@@ -46,6 +46,9 @@ void ArenaGame::spawnEntities() {
 }
 
 void ArenaGame::onUpdate(float dt) {
+  m_camera.update(
+      dt);  // apply setTarget/setOrbit (and mouse orbit) to the view
+
   m_accumulator += dt;
   const float step = 1.0f / 60.0f;
   const engine::FixedStep fs = engine::fixedTimestep(m_accumulator, step, 5);
