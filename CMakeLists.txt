@@ -76,11 +76,11 @@ add_executable(bot_arena
 )
 target_link_libraries(bot_arena PRIVATE bot_arena_engine)
 
-# add_executable(arena_game
-#     games/arena/main.cpp
-#     games/arena/ArenaGame.cpp
-# )
-# target_link_libraries(arena_game PRIVATE bot_arena_engine)
+add_executable(arena_game
+    games/arena/main.cpp
+    games/arena/ArenaGame.cpp
+)
+target_link_libraries(arena_game PRIVATE bot_arena_engine)
 
 enable_testing()
 
