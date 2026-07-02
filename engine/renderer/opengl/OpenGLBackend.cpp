@@ -2,6 +2,7 @@
 
 #include <glad/glad.h>
 
+#include <cstddef>
 #include <cstring>
 #include <glm/gtc/type_ptr.hpp>
 #include <stdexcept>
@@ -11,6 +12,7 @@
 #include "engine/renderer/CameraUniforms.hpp"
 #include "engine/renderer/Framebuffer.hpp"
 #include "engine/renderer/LightUniforms.hpp"
+#include "engine/renderer/ParticleInstance.hpp"
 #include "engine/renderer/PointLight.hpp"
 #include "engine/renderer/ResourceRegistry.hpp"
 #include "engine/renderer/SSAOKernel.hpp"
@@ -963,6 +965,77 @@ OpenGLBackend::OpenGLBackend() {
                               2 * sizeof(float));
     glVertexArrayAttribBinding(m_textVao, 1, 0);
   }
+
+  // Additive camera-facing particle billboards (instanced).
+  {
+    constexpr const char* vs = R"(
+      #version 460 core
+      layout(location = 0) in vec2 a_quad;    // unit quad [0,1]^2
+      layout(location = 1) in vec3 a_center;
+      layout(location = 2) in float a_size;
+      layout(location = 3) in vec4 a_color;
+      layout(std140, binding = 0) uniform Camera {
+        mat4 u_view;
+        mat4 u_projection;
+        mat4 u_viewProjection;
+        vec4 u_cameraPos;
+        mat4 u_invViewProjection;
+      };
+      out vec2 v_local;
+      out vec4 v_color;
+      void main() {
+        vec3 right = vec3(u_view[0][0], u_view[1][0], u_view[2][0]);
+        vec3 up = vec3(u_view[0][1], u_view[1][1], u_view[2][1]);
+        v_local = a_quad * 2.0 - 1.0;
+        vec3 world = a_center + (v_local.x * right + v_local.y * up) * a_size;
+        v_color = a_color;
+        gl_Position = u_viewProjection * vec4(world, 1.0);
+      }
+    )";
+    constexpr const char* fs = R"(
+      #version 460 core
+      in vec2 v_local;
+      in vec4 v_color;
+      out vec4 fragColor;
+      void main() {
+        float falloff = smoothstep(1.0, 0.0, length(v_local));
+        fragColor = vec4(v_color.rgb * falloff * v_color.a, 1.0);
+      }
+    )";
+    const unsigned int v = compileShader(GL_VERTEX_SHADER, vs);
+    const unsigned int f = compileShader(GL_FRAGMENT_SHADER, fs);
+    m_particleProgram = glCreateProgram();
+    glAttachShader(m_particleProgram, v);
+    glAttachShader(m_particleProgram, f);
+    glLinkProgram(m_particleProgram);
+    glDeleteShader(v);
+    glDeleteShader(f);
+
+    glCreateVertexArrays(1, &m_particleVao);
+    glCreateBuffers(1, &m_particleVbo);
+    // binding 0: unit quad (existing m_quadVbo), loc 0.
+    glVertexArrayVertexBuffer(m_particleVao, 0, m_quadVbo, 0,
+                              2 * sizeof(float));
+    glEnableVertexArrayAttrib(m_particleVao, 0);
+    glVertexArrayAttribFormat(m_particleVao, 0, 2, GL_FLOAT, GL_FALSE, 0);
+    glVertexArrayAttribBinding(m_particleVao, 0, 0);
+    // binding 1: per-instance data, divisor 1.
+    glVertexArrayVertexBuffer(m_particleVao, 1, m_particleVbo, 0,
+                              sizeof(ParticleInstance));
+    glVertexArrayBindingDivisor(m_particleVao, 1, 1);
+    glEnableVertexArrayAttrib(m_particleVao, 1);
+    glVertexArrayAttribFormat(m_particleVao, 1, 3, GL_FLOAT, GL_FALSE,
+                              offsetof(ParticleInstance, position));
+    glVertexArrayAttribBinding(m_particleVao, 1, 1);
+    glEnableVertexArrayAttrib(m_particleVao, 2);
+    glVertexArrayAttribFormat(m_particleVao, 2, 1, GL_FLOAT, GL_FALSE,
+                              offsetof(ParticleInstance, size));
+    glVertexArrayAttribBinding(m_particleVao, 2, 1);
+    glEnableVertexArrayAttrib(m_particleVao, 3);
+    glVertexArrayAttribFormat(m_particleVao, 3, 4, GL_FLOAT, GL_FALSE,
+                              offsetof(ParticleInstance, color));
+    glVertexArrayAttribBinding(m_particleVao, 3, 1);
+  }
 }
 
 OpenGLBackend::~OpenGLBackend() {
@@ -1334,6 +1407,22 @@ void OpenGLBackend::drawText(uint32_t atlasTextureId,
   glDrawArrays(GL_TRIANGLES, 0, static_cast<GLsizei>(quads.size() * 6));
   glEnable(GL_DEPTH_TEST);
   glDisable(GL_BLEND);
+}
+
+void OpenGLBackend::drawParticles(const ParticleInstance* data, int count) {
+  if (count <= 0) return;
+  glNamedBufferData(m_particleVbo,
+                    static_cast<GLsizeiptr>(count * sizeof(ParticleInstance)),
+                    data, GL_DYNAMIC_DRAW);
+  glDisable(GL_DEPTH_TEST);
+  glEnable(GL_BLEND);
+  glBlendFunc(GL_ONE, GL_ONE);  // additive
+  glUseProgram(m_particleProgram);
+  glBindVertexArray(m_particleVao);
+  glDrawArraysInstanced(GL_TRIANGLE_STRIP, 0, 4, count);
+  glBindVertexArray(0);
+  glDisable(GL_BLEND);
+  glEnable(GL_DEPTH_TEST);
 }
 
 }  // namespace engine

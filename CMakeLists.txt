@@ -42,6 +42,8 @@ add_library(bot_arena_engine STATIC
 
     engine/renderer/text/Font.cpp
 
+    engine/particles/ParticleSystem.cpp
+
     engine/renderer/RenderBackend.cpp
     engine/renderer/RenderQueue.cpp
     engine/renderer/Renderer.cpp
@@ -87,6 +89,12 @@ add_executable(arena_game
 )
 target_link_libraries(arena_game PRIVATE bot_arena_engine)
 
+add_executable(particles_game
+    games/particles/main.cpp
+    games/particles/ParticlesGame.cpp
+)
+target_link_libraries(particles_game PRIVATE bot_arena_engine)
+
 enable_testing()
 
 add_executable(bot_arena_tests
@@ -111,8 +119,11 @@ add_executable(bot_arena_tests
     tests/test_text_layout.cpp
     tests/test_debug_overlay.cpp
     tests/test_combat.cpp
+    tests/test_particle.cpp
+    tests/test_particle_system.cpp
 
     engine/core/Arena.cpp
+    engine/particles/ParticleSystem.cpp
     engine/core/JobSystem.cpp
     engine/renderer/RenderQueue.cpp
     engine/renderer/ResourceRegistry.cpp

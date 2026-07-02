@@ -143,6 +143,12 @@ void Renderer::beginFrame(int width, int height) {
   m_bloomFBO[0]->resize(halfW, halfH);
   m_bloomFBO[1]->resize(halfW, halfH);
   m_textBatches.clear();
+  m_particleInstances.clear();
+}
+
+void Renderer::submitParticles(const std::vector<ParticleInstance>& instances) {
+  m_particleInstances.insert(m_particleInstances.end(), instances.begin(),
+                             instances.end());
 }
 
 void Renderer::drawText(const Font& font, std::string_view text, float x,
@@ -214,6 +220,10 @@ void Renderer::endFrame() {
   // Emissive point-light billboards -> HDR scene (additive), before bloom.
   m_backend->drawLightBillboards(m_pointLightCount,
                                  m_gbufferFBO->colorAttachment(2));
+
+  // Particles -> HDR scene (additive), before bloom, so they glow.
+  m_backend->drawParticles(m_particleInstances.data(),
+                           static_cast<int>(m_particleInstances.size()));
 
   // Bloom: bright-pass the HDR scene, then ping-pong separable Gaussian blur.
   const int halfW = m_width / 2;
