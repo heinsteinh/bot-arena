@@ -9,6 +9,8 @@
 #include <cstdint>
 #include <vector>
 
+#include "engine/assets/TextureLoader.hpp"
+#include "engine/assets/TexturePath.hpp"
 #include "engine/renderer/Buffer.hpp"
 #include "engine/renderer/VertexArray.hpp"
 
@@ -87,8 +89,21 @@ Model loadModel(const std::string& path, ResourceRegistry& registry,
       positions.push_back({p.x, p.y, p.z});
     }
     const MeshHandle meshHandle = buildMesh(mesh, registry);
-    const MaterialHandle mat = registry.registerMaterial(
-        {diffuseColor(scene, mesh), 0.0f, 0.55f, shader});
+
+    Material material;
+    material.baseColor = diffuseColor(scene, mesh);
+    material.metallic = 0.0f;
+    material.roughness = 0.55f;
+    material.shader = shader;
+    if (mesh->mMaterialIndex < scene->mNumMaterials) {
+      const aiMaterial* aim = scene->mMaterials[mesh->mMaterialIndex];
+      aiString texPath;
+      if (aim->GetTexture(aiTextureType_DIFFUSE, 0, &texPath) == AI_SUCCESS) {
+        material.albedo =
+            loadTexture(resolveTexturePath(path, texPath.C_Str()));
+      }
+    }
+    const MaterialHandle mat = registry.registerMaterial(material);
     model.submeshes.push_back({meshHandle, mat});
     totalTris += mesh->mNumFaces;
   }

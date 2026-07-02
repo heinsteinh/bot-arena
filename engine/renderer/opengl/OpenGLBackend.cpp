@@ -1126,6 +1126,13 @@ void OpenGLBackend::executeGeometry(const std::vector<RenderEntry>& entries,
       shader->setFloat4("u_baseColor", mat.baseColor);
       shader->setFloat("u_metallic", mat.metallic);
       shader->setFloat("u_roughness", mat.roughness);
+      if (mat.albedo) {
+        mat.albedo->bind(0);
+        shader->setInt("u_albedoMap", 0);
+        shader->setInt("u_hasAlbedo", 1);
+      } else {
+        shader->setInt("u_hasAlbedo", 0);
+      }
       boundMaterial = cmd.material;
     }
     shader->setMat4("u_transform", cmd.transform);

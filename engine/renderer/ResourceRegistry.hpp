@@ -6,6 +6,7 @@
 
 #include "engine/core/Base.hpp"
 #include "engine/renderer/RenderCommand.hpp"  // handle typedefs
+#include "engine/renderer/Texture2D.hpp"
 
 namespace engine {
 
@@ -17,6 +18,7 @@ struct Material {
   float metallic = 0.0f;
   float roughness = 0.5f;
   ShaderHandle shader = 0;
+  Ref<Texture2D> albedo = nullptr;
 };
 
 class ResourceRegistry {
