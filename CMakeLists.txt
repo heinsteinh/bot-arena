@@ -102,6 +102,7 @@ add_executable(bot_arena_tests
     tests/test_wall_bounce.cpp
     tests/test_fixed_timestep.cpp
     tests/test_agent_collision.cpp
+    tests/test_steering.cpp
 
     engine/core/Arena.cpp
     engine/core/JobSystem.cpp
