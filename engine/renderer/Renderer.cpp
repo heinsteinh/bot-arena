@@ -142,6 +142,14 @@ void Renderer::beginFrame(int width, int height) {
   const uint32_t halfH = static_cast<uint32_t>(height) / 2;
   m_bloomFBO[0]->resize(halfW, halfH);
   m_bloomFBO[1]->resize(halfW, halfH);
+  m_textBatches.clear();
+}
+
+void Renderer::drawText(const Font& font, std::string_view text, float x,
+                        float y, float scale, const glm::vec4& color) {
+  std::vector<TextQuad> quads = layoutText(font.glyphs(), text, x, y, scale);
+  if (quads.empty()) return;
+  m_textBatches.push_back({font.atlasRendererID(), std::move(quads), color});
 }
 
 void Renderer::generateMeshes(
@@ -219,6 +227,11 @@ void Renderer::endFrame() {
                        m_compositePass.clearDepth, m_width, m_height);
   m_backend->compositeBloom(m_sceneFBO->colorAttachment(),
                             m_bloomFBO[src]->colorAttachment());
+
+  // Text overlay -> default framebuffer (still bound), on top of the scene.
+  for (const TextBatch& b : m_textBatches) {
+    m_backend->drawText(b.atlas, b.quads, m_width, m_height, b.color);
+  }
 }
 
 void Renderer::setPointLights(const std::vector<PointLight>& lights) {
