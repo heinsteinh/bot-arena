@@ -20,9 +20,7 @@ find_package(Stb REQUIRED)
 find_package(Catch2 3 CONFIG REQUIRED)
 find_package(Threads REQUIRED)
 
-add_executable(bot_arena
-    src/main.cpp
-
+add_library(bot_arena_engine STATIC
     engine/core/Application.cpp
     engine/core/Arena.cpp
     engine/core/Time.cpp
@@ -47,23 +45,21 @@ add_executable(bot_arena
     engine/renderer/ResourceRegistry.cpp
     engine/renderer/MeshRenderer.cpp
     engine/renderer/CommandBufferPool.cpp
-
-    game/BotArenaGame.cpp
 )
 
-target_include_directories(bot_arena
-    PRIVATE
+target_include_directories(bot_arena_engine
+    PUBLIC
         ${CMAKE_CURRENT_SOURCE_DIR}
         ${Stb_INCLUDE_DIR}
 )
 
-target_compile_definitions(bot_arena
-    PRIVATE
+target_compile_definitions(bot_arena_engine
+    PUBLIC
         BOTARENA_ASSET_DIR="${CMAKE_CURRENT_SOURCE_DIR}/assets"
 )
 
-target_link_libraries(bot_arena
-    PRIVATE
+target_link_libraries(bot_arena_engine
+    PUBLIC
         SDL3::SDL3
         glad::glad
         glm::glm
@@ -73,6 +69,18 @@ target_link_libraries(bot_arena
         imgui::imgui
         Threads::Threads
 )
+
+add_executable(bot_arena
+    src/main.cpp
+    game/BotArenaGame.cpp
+)
+target_link_libraries(bot_arena PRIVATE bot_arena_engine)
+
+add_executable(arena_game
+    games/arena/main.cpp
+    games/arena/ArenaGame.cpp
+)
+target_link_libraries(arena_game PRIVATE bot_arena_engine)
 
 enable_testing()
 
@@ -91,6 +99,8 @@ add_executable(bot_arena_tests
     tests/test_light_view_proj.cpp
     tests/test_point_light_ring.cpp
     tests/test_ssao_kernel.cpp
+    tests/test_wall_bounce.cpp
+    tests/test_fixed_timestep.cpp
 
     engine/core/Arena.cpp
     engine/core/JobSystem.cpp
