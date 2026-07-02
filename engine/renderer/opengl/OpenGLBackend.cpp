@@ -791,6 +791,64 @@ unsigned int createBloomBlurProgram() {
   return program;
 }
 
+unsigned int createEmissiveProgram() {
+  constexpr const char* vs = R"(
+    #version 460 core
+    layout(location = 0) in vec2 a_position;   // unit quad [0,1]^2
+    layout(std140, binding = 0) uniform Camera {
+      mat4 u_view;
+      mat4 u_projection;
+      mat4 u_viewProjection;
+      vec4 u_cameraPos;
+      mat4 u_invViewProjection;
+    };
+    struct PointLight { vec4 positionRadius; vec4 color; };
+    layout(std140, binding = 2) uniform PointLights {
+      int u_pointCount;
+      PointLight u_points[32];
+    };
+    uniform float u_size;
+    out vec2 v_local;
+    out vec3 v_color;
+    void main() {
+      vec3 center = u_points[gl_InstanceID].positionRadius.xyz;
+      v_color =
+          u_points[gl_InstanceID].color.rgb * u_points[gl_InstanceID].color.a;
+      vec3 right = vec3(u_view[0][0], u_view[1][0], u_view[2][0]);
+      vec3 up = vec3(u_view[0][1], u_view[1][1], u_view[2][1]);
+      v_local = a_position * 2.0 - 1.0;
+      vec3 world = center + (v_local.x * right + v_local.y * up) * u_size;
+      gl_Position = u_viewProjection * vec4(world, 1.0);
+    }
+  )";
+  constexpr const char* fs = R"(
+    #version 460 core
+    in vec2 v_local;
+    in vec3 v_color;
+    out vec4 fragColor;
+    void main() {
+      float falloff = smoothstep(1.0, 0.0, length(v_local));
+      fragColor = vec4(v_color * falloff, 1.0);
+    }
+  )";
+  const unsigned int v = compileShader(GL_VERTEX_SHADER, vs);
+  const unsigned int f = compileShader(GL_FRAGMENT_SHADER, fs);
+  const unsigned int program = glCreateProgram();
+  glAttachShader(program, v);
+  glAttachShader(program, f);
+  glLinkProgram(program);
+  glDeleteShader(v);
+  glDeleteShader(f);
+  int ok = 0;
+  glGetProgramiv(program, GL_LINK_STATUS, &ok);
+  if (!ok) {
+    char log[1024];
+    glGetProgramInfoLog(program, sizeof(log), nullptr, log);
+    throw std::runtime_error(log);
+  }
+  return program;
+}
+
 }  // namespace
 
 OpenGLBackend::OpenGLBackend() {
@@ -836,6 +894,7 @@ OpenGLBackend::OpenGLBackend() {
 
   m_bloomExtractShader = createBloomExtractProgram();
   m_bloomBlurShader = createBloomBlurProgram();
+  m_emissiveShader = createEmissiveProgram();
 }
 
 OpenGLBackend::~OpenGLBackend() {
@@ -850,6 +909,7 @@ OpenGLBackend::~OpenGLBackend() {
   if (m_ssaoBlurShader) glDeleteProgram(m_ssaoBlurShader);
   if (m_bloomExtractShader) glDeleteProgram(m_bloomExtractShader);
   if (m_bloomBlurShader) glDeleteProgram(m_bloomBlurShader);
+  if (m_emissiveShader) glDeleteProgram(m_emissiveShader);
   if (m_quadVbo) glDeleteBuffers(1, &m_quadVbo);
   if (m_quadVao) glDeleteVertexArrays(1, &m_quadVao);
 }
@@ -1132,7 +1192,7 @@ void OpenGLBackend::bloomExtract(uint32_t sceneTex) {
   glUseProgram(m_bloomExtractShader);
   glBindTextureUnit(0, sceneTex);
   glUniform1i(glGetUniformLocation(m_bloomExtractShader, "u_scene"), 0);
-  glUniform1f(glGetUniformLocation(m_bloomExtractShader, "u_threshold"), 0.45f);
+  glUniform1f(glGetUniformLocation(m_bloomExtractShader, "u_threshold"), 1.0f);
   glBindVertexArray(m_quadVao);
   glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
   glBindVertexArray(0);
@@ -1148,6 +1208,19 @@ void OpenGLBackend::bloomBlur(uint32_t src, bool horizontal) {
   glBindVertexArray(m_quadVao);
   glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
   glBindVertexArray(0);
+}
+
+void OpenGLBackend::drawLightBillboards(int count) {
+  if (count <= 0) return;
+  glDisable(GL_DEPTH_TEST);
+  glEnable(GL_BLEND);
+  glBlendFunc(GL_ONE, GL_ONE);  // additive
+  glUseProgram(m_emissiveShader);
+  glUniform1f(glGetUniformLocation(m_emissiveShader, "u_size"), 0.25f);
+  glBindVertexArray(m_quadVao);
+  glDrawArraysInstanced(GL_TRIANGLE_STRIP, 0, 4, count);
+  glBindVertexArray(0);
+  glDisable(GL_BLEND);
 }
 
 void OpenGLBackend::readPixels(int x, int y, int width, int height, void* out) {
