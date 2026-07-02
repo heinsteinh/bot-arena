@@ -82,6 +82,8 @@ class Renderer {
   static constexpr uint32_t kPrefilterSize = 128;
   static constexpr int kPrefilterMips = 5;
   static constexpr uint32_t kBrdfSize = 512;
+  Ref<Framebuffer> m_ssaoFBO;
+  Ref<Framebuffer> m_ssaoBlurFBO;
   int m_width = 0;
   int m_height = 0;
   MeshHandle m_cubeMesh = 0;

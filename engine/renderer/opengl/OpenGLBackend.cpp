@@ -153,6 +153,7 @@ unsigned int createLightingProgram() {
     uniform samplerCube u_irradiance;
     uniform samplerCube u_prefilter;
     uniform sampler2D u_brdfLUT;
+    uniform sampler2D u_ao;
     uniform int u_prefilterMips;
 
     layout(std140, binding = 0) uniform Camera {
@@ -255,7 +256,8 @@ unsigned int createLightingProgram() {
           textureLod(u_prefilter, R, rough * float(u_prefilterMips - 1)).rgb;
       vec2 ab = texture(u_brdfLUT, vec2(NoV, rough)).rg;
       vec3 specularIBL = prefiltered * (Famb * ab.x + ab.y);
-      vec3 color = kdAmb * diffuseIBL + specularIBL;
+      float ao = texture(u_ao, v_uv).r;
+      vec3 color = (kdAmb * diffuseIBL + specularIBL) * ao;
 
       // Directional light (shadowed).
       vec3 L = normalize(u_lightDir.xyz);
