@@ -71,12 +71,17 @@ unsigned int createCompositeProgram() {
     uniform sampler2D u_scene;
     uniform sampler2D u_bloom;
     uniform float u_bloomIntensity;
+    uniform float u_exposure;
+    vec3 aces(vec3 x) {
+      const float a = 2.51, b = 0.03, c = 2.43, d = 0.59, e = 0.14;
+      return clamp((x * (a * x + b)) / (x * (c * x + d) + e), 0.0, 1.0);
+    }
     void main() {
-      vec3 hdr = texture(u_scene, v_uv).rgb +
-                 texture(u_bloom, v_uv).rgb * u_bloomIntensity;
-      hdr = hdr / (hdr + vec3(1.0));   // Reinhard tonemap
-      hdr = pow(hdr, vec3(1.0 / 2.2)); // gamma
-      fragColor = vec4(hdr, 1.0);
+      vec3 hdr = (texture(u_scene, v_uv).rgb +
+                  texture(u_bloom, v_uv).rgb * u_bloomIntensity) * u_exposure;
+      vec3 c = aces(hdr);
+      c = pow(c, vec3(1.0 / 2.2));   // gamma
+      fragColor = vec4(c, 1.0);
     }
   )";
   const unsigned int v = compileShader(GL_VERTEX_SHADER, vs);
@@ -810,6 +815,7 @@ unsigned int createEmissiveProgram() {
     uniform float u_size;
     out vec2 v_local;
     out vec3 v_color;
+    out vec3 v_worldPos;
     void main() {
       vec3 center = u_points[gl_InstanceID].positionRadius.xyz;
       v_color =
@@ -818,6 +824,7 @@ unsigned int createEmissiveProgram() {
       vec3 up = vec3(u_view[0][1], u_view[1][1], u_view[2][1]);
       v_local = a_position * 2.0 - 1.0;
       vec3 world = center + (v_local.x * right + v_local.y * up) * u_size;
+      v_worldPos = world;
       gl_Position = u_viewProjection * vec4(world, 1.0);
     }
   )";
@@ -825,10 +832,26 @@ unsigned int createEmissiveProgram() {
     #version 460 core
     in vec2 v_local;
     in vec3 v_color;
+    in vec3 v_worldPos;
     out vec4 fragColor;
+    layout(std140, binding = 0) uniform Camera {
+      mat4 u_view;
+      mat4 u_projection;
+      mat4 u_viewProjection;
+      vec4 u_cameraPos;
+      mat4 u_invViewProjection;
+    };
+    uniform sampler2D u_gWorldPos;
     void main() {
       float falloff = smoothstep(1.0, 0.0, length(v_local));
-      fragColor = vec4(v_color * falloff, 1.0);
+      vec4 sceneWP = texelFetch(u_gWorldPos, ivec2(gl_FragCoord.xy), 0);
+      float fade = 1.0;
+      if (sceneWP.w > 0.5) {   // geometry present (sky has w == 0)
+        float sceneDist = length(sceneWP.xyz - u_cameraPos.xyz);
+        float fragDist = length(v_worldPos - u_cameraPos.xyz);
+        fade = smoothstep(0.0, 0.5, sceneDist - fragDist);
+      }
+      fragColor = vec4(v_color * falloff * fade, 1.0);
     }
   )";
   const unsigned int v = compileShader(GL_VERTEX_SHADER, vs);
@@ -1142,6 +1165,7 @@ void OpenGLBackend::compositeBloom(uint32_t sceneTex, uint32_t bloomTex) {
   glUniform1i(glGetUniformLocation(m_compositeShader, "u_bloom"), 1);
   glUniform1f(glGetUniformLocation(m_compositeShader, "u_bloomIntensity"),
               1.0f);
+  glUniform1f(glGetUniformLocation(m_compositeShader, "u_exposure"), 1.0f);
   glBindVertexArray(m_quadVao);
   glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
   glBindVertexArray(0);
@@ -1210,13 +1234,15 @@ void OpenGLBackend::bloomBlur(uint32_t src, bool horizontal) {
   glBindVertexArray(0);
 }
 
-void OpenGLBackend::drawLightBillboards(int count) {
+void OpenGLBackend::drawLightBillboards(int count, uint32_t gWorldPos) {
   if (count <= 0) return;
   glDisable(GL_DEPTH_TEST);
   glEnable(GL_BLEND);
   glBlendFunc(GL_ONE, GL_ONE);  // additive
   glUseProgram(m_emissiveShader);
   glUniform1f(glGetUniformLocation(m_emissiveShader, "u_size"), 0.25f);
+  glBindTextureUnit(0, gWorldPos);
+  glUniform1i(glGetUniformLocation(m_emissiveShader, "u_gWorldPos"), 0);
   glBindVertexArray(m_quadVao);
   glDrawArraysInstanced(GL_TRIANGLE_STRIP, 0, 4, count);
   glBindVertexArray(0);

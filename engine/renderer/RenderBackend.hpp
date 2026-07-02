@@ -62,7 +62,7 @@ class RenderBackend {
   virtual void bloomBlur(uint32_t src, bool horizontal) = 0;
   // Draw the point lights as additive emissive billboards into the bound
   // target.
-  virtual void drawLightBillboards(int count) = 0;
+  virtual void drawLightBillboards(int count, uint32_t gWorldPos) = 0;
   // Render mesh depth from the light's POV into the bound depth target.
   virtual void executeShadow(const std::vector<RenderEntry>& entries,
                              const glm::mat4& lightViewProj, Arena& scratch,
