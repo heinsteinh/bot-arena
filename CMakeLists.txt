@@ -109,6 +109,7 @@ add_executable(bot_arena_tests
     tests/test_agent_collision.cpp
     tests/test_steering.cpp
     tests/test_text_layout.cpp
+    tests/test_debug_overlay.cpp
 
     engine/core/Arena.cpp
     engine/core/JobSystem.cpp
