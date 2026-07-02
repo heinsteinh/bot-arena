@@ -6,6 +6,7 @@
 
 #include "engine/assets/ModelLoader.hpp"
 #include "engine/core/Layer.hpp"
+#include "engine/particles/ParticleSystem.hpp"
 #include "engine/renderer/OrbitCameraController.hpp"
 #include "engine/renderer/RenderCommand.hpp"
 #include "engine/renderer/text/Font.hpp"
@@ -39,6 +40,7 @@ class ShooterGame final : public engine::Layer {
   engine::MaterialHandle m_playerBulletMat = 0;
   engine::MaterialHandle m_enemyBulletMat = 0;
   engine::Ref<engine::Font> m_font;
+  engine::ParticleSystem m_explosions;
 
   static constexpr float kPlayerSpeed = 6.0f;
   static constexpr float kBulletSpeed = 16.0f;

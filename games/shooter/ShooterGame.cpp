@@ -11,9 +11,30 @@
 #include "engine/gameplay/Combat.hpp"
 #include "engine/gameplay/ShipControls.hpp"
 #include "engine/renderer/MeshRenderer.hpp"
+#include "engine/renderer/ParticleInstance.hpp"
 #include "engine/renderer/PointLight.hpp"
 #include "engine/renderer/ResourceRegistry.hpp"
 #include "games/shooter/Components.hpp"
+
+namespace {
+
+engine::EmitParams enemyExplosion(int tier) {
+  engine::EmitParams p;
+  p.count = 40 + tier * 20;  // 40 / 60 / 80
+  p.speedMin = 2.0f;
+  p.speedMax = 4.5f + tier * 1.5f;
+  p.direction = {0.0f, 0.0f, 0.0f};  // radial
+  p.spread = 1.0f;
+  p.color = {1.0f, 0.5f, 0.15f};  // warm orange
+  p.sizeMin = 0.18f;
+  p.sizeMax = 0.32f + tier * 0.1f;
+  p.lifeMin = 0.7f;
+  p.lifeMax = 1.6f;
+  p.gravity = {0.0f, -5.0f, 0.0f};
+  return p;
+}
+
+}  // namespace
 
 namespace shooter {
 
@@ -185,7 +206,9 @@ void ShooterGame::stepSim(float dt) {
         eh.current = engine::adjustHealth(eh.current, -1.0f, eh.max);
         killed.push_back(b);
         if (eh.current <= 0.0f) {
-          m_score += kWeight[m_registry.get<Enemy>(en).tier];
+          const int tier = m_registry.get<Enemy>(en).tier;
+          m_explosions.emit(enemyExplosion(tier), ep, m_rng);
+          m_score += kWeight[tier];
           killed.push_back(en);
         }
         break;
@@ -217,6 +240,8 @@ void ShooterGame::stepSim(float dt) {
   for (const entt::entity en : m_registry.view<Transform, Enemy>()) {
     const glm::vec3& ep = m_registry.get<Transform>(en).position;
     if (engine::circlesOverlapXZ(ep, kEnemyRadius, playerPos, kPlayerRadius)) {
+      m_explosions.emit(enemyExplosion(m_registry.get<Enemy>(en).tier), ep,
+                        m_rng);
       ph.current = engine::adjustHealth(ph.current, -kRamDamage, ph.max);
       rammed.push_back(en);
     }
@@ -243,6 +268,8 @@ void ShooterGame::stepSim(float dt) {
       m_lives = kLives;
     }
   }
+
+  m_explosions.update(dt);
 }
 
 void ShooterGame::onRender(engine::Renderer& renderer, int width, int height) {
@@ -327,6 +354,13 @@ void ShooterGame::onRender(engine::Renderer& renderer, int width, int height) {
       meshes.submit(sm.mesh, mat, m);
     }
   }
+
+  std::vector<engine::ParticleInstance> particles;
+  for (const engine::Particle& p : m_explosions.particles()) {
+    particles.push_back(
+        {p.position, p.size, glm::vec4(engine::renderColor(p), 1.0f)});
+  }
+  renderer.submitParticles(particles);
 
   if (m_font) {
     int enemies = 0;
