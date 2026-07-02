@@ -38,6 +38,17 @@ class RenderBackend {
                                  const glm::vec3& sunDir) = 0;
   // Remember the environment cubemap the lighting pass samples (unit 4).
   virtual void setEnvironment(uint32_t envCubemap) = 0;
+  // Convolve the environment into a diffuse irradiance cubemap.
+  virtual void convolveIrradiance(uint32_t env, uint32_t irradianceCube,
+                                  int size) = 0;
+  // Prefilter the environment for specular IBL into a mipped cubemap.
+  virtual void prefilterEnvironment(uint32_t env, uint32_t prefilterCube,
+                                    int baseSize, int mipCount) = 0;
+  // Integrate the split-sum BRDF LUT into the bound framebuffer (fullscreen).
+  virtual void integrateBRDF() = 0;
+  // Remember the IBL maps the lighting pass samples (units 5/6/7).
+  virtual void setIBL(uint32_t irradiance, uint32_t prefilter, uint32_t brdfLUT,
+                      int prefilterMips) = 0;
   // Render mesh depth from the light's POV into the bound depth target.
   virtual void executeShadow(const std::vector<RenderEntry>& entries,
                              const glm::mat4& lightViewProj, Arena& scratch,

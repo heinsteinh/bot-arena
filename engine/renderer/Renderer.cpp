@@ -45,6 +45,26 @@ Renderer::Renderer(JobSystem& jobs)
   m_backend->renderEnvironment(m_envMap->rendererID(),
                                static_cast<int>(kEnvSize), m_lightDir);
   m_backend->setEnvironment(m_envMap->rendererID());
+
+  m_irradianceMap = TextureCube::Create(kIrradianceSize, 1);
+  m_prefilterMap = TextureCube::Create(kPrefilterSize, kPrefilterMips);
+  FramebufferSpec brdfSpec;
+  brdfSpec.width = kBrdfSize;
+  brdfSpec.height = kBrdfSize;
+  m_brdfFBO = Framebuffer::Create(brdfSpec);
+
+  m_backend->convolveIrradiance(m_envMap->rendererID(),
+                                m_irradianceMap->rendererID(),
+                                static_cast<int>(kIrradianceSize));
+  m_backend->prefilterEnvironment(
+      m_envMap->rendererID(), m_prefilterMap->rendererID(),
+      static_cast<int>(kPrefilterSize), kPrefilterMips);
+  m_backend->beginPass(m_brdfFBO.get(), {0.0f, 0.0f, 0.0f, 1.0f}, false,
+                       static_cast<int>(kBrdfSize),
+                       static_cast<int>(kBrdfSize));
+  m_backend->integrateBRDF();
+  m_backend->setIBL(m_irradianceMap->rendererID(), m_prefilterMap->rendererID(),
+                    m_brdfFBO->colorAttachment(), kPrefilterMips);
 }
 
 void Renderer::initBuiltins() {
