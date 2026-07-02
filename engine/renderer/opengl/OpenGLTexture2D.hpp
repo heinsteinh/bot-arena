@@ -7,7 +7,7 @@ namespace engine {
 
 class OpenGLTexture2D final : public Texture2D {
  public:
-  OpenGLTexture2D(uint32_t width, uint32_t height);
+  OpenGLTexture2D(uint32_t width, uint32_t height, TextureFormat format);
   ~OpenGLTexture2D() override;
 
   void setData(const void* data, uint32_t size) override;
@@ -20,6 +20,7 @@ class OpenGLTexture2D final : public Texture2D {
   uint32_t m_rendererID = 0;
   uint32_t m_width = 0;
   uint32_t m_height = 0;
+  TextureFormat m_format = TextureFormat::R8;
 };
 
 }  // namespace engine
