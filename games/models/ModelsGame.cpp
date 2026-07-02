@@ -18,9 +18,13 @@ void ModelsGame::onAttach() {
   m_camera.setOrbit(35.0f, 20.0f, 3.5f);
 
   const char* files[][2] = {
-      {"Monitor", "meshes/monitor.obj"}, {"Suzanne", "meshes/suzanne.obj"},
-      {"Teapot", "meshes/teapot.obj"},   {"Sphere", "meshes/sphere.obj"},
-      {"Torus", "meshes/torus.obj"},     {"Spaceship", "meshes/spaceship.obj"},
+      {"Planet", "Objects/Planet/planet.obj"},
+      {"Monitor", "meshes/monitor.obj"},
+      {"Suzanne", "meshes/suzanne.obj"},
+      {"Teapot", "meshes/teapot.obj"},
+      {"Sphere", "meshes/sphere.obj"},
+      {"Torus", "meshes/torus.obj"},
+      {"Spaceship", "meshes/spaceship.obj"},
       {"Statue", "meshes/statue.obj"},
   };
   for (const auto& f : files) {
