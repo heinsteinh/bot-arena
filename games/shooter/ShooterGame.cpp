@@ -4,6 +4,7 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <vector>
 
+#include "engine/ai/Steering.hpp"
 #include "engine/assets/MeshBounds.hpp"
 #include "engine/core/AssetPath.hpp"
 #include "engine/core/Input.hpp"
@@ -40,7 +41,20 @@ void ShooterGame::onUpdate(float dt) {
   }
 }
 
-void ShooterGame::spawnEnemy() {}  // filled in Task 4
+void ShooterGame::spawnEnemy() {
+  std::uniform_real_distribution<float> angleD(0.0f, 6.2831853f);
+  std::uniform_int_distribution<int> tierD(0, 4);  // weighted toward grunts
+  const int roll = tierD(m_rng);
+  const int tier = roll < 3 ? 0 : (roll < 4 ? 1 : 2);
+  const float a = angleD(m_rng);
+  const entt::entity e = m_registry.create();
+  m_registry.emplace<Transform>(
+      e,
+      glm::vec3(std::cos(a) * kSpawnRadius, 0.4f, std::sin(a) * kSpawnRadius),
+      tier == 2 ? 0.8f : (tier == 1 ? 0.9f : 0.6f), 0.0f);
+  m_registry.emplace<Velocity>(e, glm::vec3(0.0f));
+  m_registry.emplace<Enemy>(e, tier);
+}
 
 void ShooterGame::stepSim(float dt) {
   // Input -> player velocity + facing.
@@ -63,6 +77,31 @@ void ShooterGame::stepSim(float dt) {
     }
     playerPos = t.position;
     playerYaw = t.yaw;
+  }
+
+  // Enemies seek the player.
+  const float kTierSpeed[3] = {3.0f, 2.0f, 4.0f};
+  for (const entt::entity e : m_registry.view<Transform, Velocity, Enemy>()) {
+    Transform& t = m_registry.get<Transform>(e);
+    Velocity& v = m_registry.get<Velocity>(e);
+    const float maxSpeed = kTierSpeed[m_registry.get<Enemy>(e).tier];
+    const glm::vec3 force =
+        engine::seek(t.position, v.value, playerPos, maxSpeed, 8.0f);
+    v.value += force * dt;
+    v.value = engine::truncate(v.value, maxSpeed);
+    if (glm::length(v.value) > 0.01f) t.yaw = engine::headingToYaw(v.value);
+  }
+
+  // Spawn on a timer up to the cap.
+  m_spawnTimer -= dt;
+  int enemyCount = 0;
+  for (const entt::entity e : m_registry.view<Enemy>()) {
+    (void)e;
+    ++enemyCount;
+  }
+  if (m_spawnTimer <= 0.0f && enemyCount < kEnemyCap) {
+    spawnEnemy();
+    m_spawnTimer = kSpawnInterval;
   }
 
   // Auto-fire forward.
