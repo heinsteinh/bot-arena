@@ -56,6 +56,21 @@ headless screenshot shows cleanly separated agents.
 - Behavioral: `arena_game` shows agents spaced out with no interpenetrating cubes;
   the player and walls are unchanged.
 
+## Rendering fixes surfaced this milestone
+
+Viewing the arena from its top-down camera exposed two pre-existing bugs (both
+fixed here):
+
+- **Unit cube winding** — the built-in cube's `+Y`/`-Y` faces were wound clockwise
+  from outside, so back-face culling dropped them; every cube (and the ground/walls)
+  rendered with missing top/bottom faces. Masked by the tiny, dense `BotArenaGame`
+  swarm; obvious on `arena_game`'s large, sparse cubes viewed from above. Reversed
+  the two faces' winding so all six are CCW from outside — both games now render
+  solid cubes and a correctly-lit floor.
+- **Inert orbit camera** — `ArenaGame` never called `m_camera.update()`, so
+  `setTarget`/`setOrbit` never took effect (that call is what runs `lookAt`). Added
+  it to `onUpdate`, giving the intended top-down orbit (and mouse-orbit) view.
+
 ## Next Milestones
 
 - **v0.16 — Steering behaviours** (seek / flee / wander forces on bot velocity).
