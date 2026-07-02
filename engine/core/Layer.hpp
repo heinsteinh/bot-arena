@@ -13,6 +13,7 @@ class Layer {
 
   virtual void onUpdate(float dt) {}
   virtual void onRender(Renderer& renderer, int width, int height) {}
+  virtual void onImGuiRender() {}
 };
 
 }  // namespace engine
