@@ -1,10 +1,13 @@
 #include "games/shooter/ShooterGame.hpp"
 
+#include <cmath>
 #include <glm/gtc/matrix_transform.hpp>
 #include <vector>
 
 #include "engine/assets/MeshBounds.hpp"
 #include "engine/core/AssetPath.hpp"
+#include "engine/core/Input.hpp"
+#include "engine/gameplay/ShipControls.hpp"
 #include "engine/renderer/MeshRenderer.hpp"
 #include "engine/renderer/PointLight.hpp"
 #include "engine/renderer/ResourceRegistry.hpp"
@@ -21,6 +24,8 @@ void ShooterGame::onAttach() {
                                 0.0f);
   m_registry.emplace<Velocity>(player, glm::vec3(0.0f));
   m_registry.emplace<Player>(player);
+
+  for (int i = 0; i < 150; ++i) stepSim(1.0f / 60.0f);
 }
 
 void ShooterGame::onUpdate(float dt) {
@@ -37,7 +42,58 @@ void ShooterGame::onUpdate(float dt) {
 
 void ShooterGame::spawnEnemy() {}  // filled in Task 4
 
-void ShooterGame::stepSim(float /*dt*/) {}  // filled in Tasks 3-5
+void ShooterGame::stepSim(float dt) {
+  // Input -> player velocity + facing.
+  glm::vec3 dir(0.0f);
+  if (engine::Input::isKeyDown(engine::Key::W)) dir.z -= 1.0f;
+  if (engine::Input::isKeyDown(engine::Key::S)) dir.z += 1.0f;
+  if (engine::Input::isKeyDown(engine::Key::A)) dir.x -= 1.0f;
+  if (engine::Input::isKeyDown(engine::Key::D)) dir.x += 1.0f;
+
+  glm::vec3 playerPos(0.0f);
+  float playerYaw = 0.0f;
+  for (const entt::entity e : m_registry.view<Transform, Velocity, Player>()) {
+    Transform& t = m_registry.get<Transform>(e);
+    Velocity& v = m_registry.get<Velocity>(e);
+    if (glm::length(dir) > 0.01f) {
+      v.value = glm::normalize(dir) * kPlayerSpeed;
+      t.yaw = engine::headingToYaw(v.value);
+    } else {
+      v.value = glm::vec3(0.0f);
+    }
+    playerPos = t.position;
+    playerYaw = t.yaw;
+  }
+
+  // Auto-fire forward.
+  m_fireTimer -= dt;
+  if (m_fireTimer <= 0.0f) {
+    const glm::vec3 fwd = engine::forwardFromYaw(playerYaw);
+    const entt::entity b = m_registry.create();
+    m_registry.emplace<Transform>(b, playerPos + fwd * kNoseOffset, 0.35f,
+                                  playerYaw);
+    m_registry.emplace<Velocity>(b, fwd * kBulletSpeed);
+    m_registry.emplace<Bullet>(b, kBulletLife);
+    m_fireTimer = kFireCooldown;
+  }
+
+  // Integrate everything; age + cull bullets.
+  for (const entt::entity e : m_registry.view<Transform, Velocity>()) {
+    m_registry.get<Transform>(e).position +=
+        m_registry.get<Velocity>(e).value * dt;
+  }
+  std::vector<entt::entity> deadBullets;
+  for (const entt::entity e : m_registry.view<Transform, Bullet>()) {
+    Bullet& bu = m_registry.get<Bullet>(e);
+    bu.life -= dt;
+    const glm::vec3& p = m_registry.get<Transform>(e).position;
+    if (bu.life <= 0.0f || std::abs(p.x) > kCullBound ||
+        std::abs(p.z) > kCullBound) {
+      deadBullets.push_back(e);
+    }
+  }
+  for (const entt::entity e : deadBullets) m_registry.destroy(e);
+}
 
 void ShooterGame::onRender(engine::Renderer& renderer, int width, int height) {
   if (!m_resourcesReady) {
