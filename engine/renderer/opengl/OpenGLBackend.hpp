@@ -32,6 +32,9 @@ class OpenGLBackend final : public RenderBackend {
   void integrateBRDF() override;
   void setIBL(uint32_t irradiance, uint32_t prefilter, uint32_t brdfLUT,
               int prefilterMips) override;
+  void ssaoPass(uint32_t gNormal, uint32_t gWorldPos) override;
+  void ssaoBlur(uint32_t aoRaw) override;
+  void setAO(uint32_t aoTexture) override;
   void executeShadow(const std::vector<RenderEntry>& entries,
                      const glm::mat4& lightViewProj, Arena& scratch,
                      const ResourceRegistry& registry) override;
@@ -64,6 +67,10 @@ class OpenGLBackend final : public RenderBackend {
   unsigned int m_prefilterMap = 0;
   unsigned int m_brdfLUT = 0;
   int m_prefilterMips = 1;
+
+  unsigned int m_ssaoShader = 0;
+  unsigned int m_ssaoBlurShader = 0;
+  unsigned int m_ao = 0;
 };
 
 }  // namespace engine

@@ -49,6 +49,13 @@ class RenderBackend {
   // Remember the IBL maps the lighting pass samples (units 5/6/7).
   virtual void setIBL(uint32_t irradiance, uint32_t prefilter, uint32_t brdfLUT,
                       int prefilterMips) = 0;
+  // Screen-space ambient occlusion: read the G-buffer, write AO to the target.
+  virtual void ssaoPass(uint32_t gNormal, uint32_t gWorldPos) = 0;
+  // Box-blur the raw AO into the bound target.
+  virtual void ssaoBlur(uint32_t aoRaw) = 0;
+  // Remember the AO texture the lighting pass multiplies the ambient by (unit
+  // 8).
+  virtual void setAO(uint32_t aoTexture) = 0;
   // Render mesh depth from the light's POV into the bound depth target.
   virtual void executeShadow(const std::vector<RenderEntry>& entries,
                              const glm::mat4& lightViewProj, Arena& scratch,
