@@ -48,6 +48,7 @@ add_library(bot_arena_engine STATIC
     engine/imgui/ImGuiLayer.cpp
 
     engine/assets/ModelLoader.cpp
+    engine/assets/TextureLoader.cpp
 
     engine/renderer/RenderBackend.cpp
     engine/renderer/RenderQueue.cpp
