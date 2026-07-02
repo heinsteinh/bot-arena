@@ -71,12 +71,17 @@ unsigned int createCompositeProgram() {
     uniform sampler2D u_scene;
     uniform sampler2D u_bloom;
     uniform float u_bloomIntensity;
+    uniform float u_exposure;
+    vec3 aces(vec3 x) {
+      const float a = 2.51, b = 0.03, c = 2.43, d = 0.59, e = 0.14;
+      return clamp((x * (a * x + b)) / (x * (c * x + d) + e), 0.0, 1.0);
+    }
     void main() {
-      vec3 hdr = texture(u_scene, v_uv).rgb +
-                 texture(u_bloom, v_uv).rgb * u_bloomIntensity;
-      hdr = hdr / (hdr + vec3(1.0));   // Reinhard tonemap
-      hdr = pow(hdr, vec3(1.0 / 2.2)); // gamma
-      fragColor = vec4(hdr, 1.0);
+      vec3 hdr = (texture(u_scene, v_uv).rgb +
+                  texture(u_bloom, v_uv).rgb * u_bloomIntensity) * u_exposure;
+      vec3 c = aces(hdr);
+      c = pow(c, vec3(1.0 / 2.2));   // gamma
+      fragColor = vec4(c, 1.0);
     }
   )";
   const unsigned int v = compileShader(GL_VERTEX_SHADER, vs);
@@ -1142,6 +1147,7 @@ void OpenGLBackend::compositeBloom(uint32_t sceneTex, uint32_t bloomTex) {
   glUniform1i(glGetUniformLocation(m_compositeShader, "u_bloom"), 1);
   glUniform1f(glGetUniformLocation(m_compositeShader, "u_bloomIntensity"),
               1.0f);
+  glUniform1f(glGetUniformLocation(m_compositeShader, "u_exposure"), 1.0f);
   glBindVertexArray(m_quadVao);
   glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
   glBindVertexArray(0);
