@@ -18,6 +18,7 @@ find_package(yaml-cpp CONFIG REQUIRED)
 find_package(imgui CONFIG REQUIRED)
 find_package(Stb REQUIRED)
 find_package(freetype CONFIG REQUIRED)
+find_package(assimp CONFIG REQUIRED)
 find_package(Catch2 3 CONFIG REQUIRED)
 find_package(Threads REQUIRED)
 
@@ -45,6 +46,8 @@ add_library(bot_arena_engine STATIC
     engine/particles/ParticleSystem.cpp
 
     engine/imgui/ImGuiLayer.cpp
+
+    engine/assets/ModelLoader.cpp
 
     engine/renderer/RenderBackend.cpp
     engine/renderer/RenderQueue.cpp
@@ -76,6 +79,7 @@ target_link_libraries(bot_arena_engine
         yaml-cpp::yaml-cpp
         imgui::imgui
         freetype
+        assimp::assimp
         Threads::Threads
 )
 
@@ -96,6 +100,12 @@ add_executable(particles_game
     games/particles/ParticlesGame.cpp
 )
 target_link_libraries(particles_game PRIVATE bot_arena_engine)
+
+add_executable(models_game
+    games/models/main.cpp
+    games/models/ModelsGame.cpp
+)
+target_link_libraries(models_game PRIVATE bot_arena_engine)
 
 enable_testing()
 
@@ -123,6 +133,7 @@ add_executable(bot_arena_tests
     tests/test_combat.cpp
     tests/test_particle.cpp
     tests/test_particle_system.cpp
+    tests/test_mesh_bounds.cpp
 
     engine/core/Arena.cpp
     engine/particles/ParticleSystem.cpp
