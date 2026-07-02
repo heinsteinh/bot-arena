@@ -25,6 +25,7 @@ void ShooterGame::onAttach() {
                                 0.0f);
   m_registry.emplace<Velocity>(player, glm::vec3(0.0f));
   m_registry.emplace<Player>(player);
+  m_registry.emplace<Health>(player, kMaxHealth, kMaxHealth);
 
   for (int i = 0; i < 150; ++i) stepSim(1.0f / 60.0f);
 }
@@ -103,7 +104,7 @@ void ShooterGame::stepSim(float dt) {
         engine::seek(t.position, v.value, playerPos, maxSpeed, 8.0f);
     v.value += force * dt;
     v.value = engine::truncate(v.value, maxSpeed);
-    if (glm::length(v.value) > 0.01f) t.yaw = engine::headingToYaw(v.value);
+    t.yaw = engine::headingToYaw(playerPos - t.position);
   }
 
   // Spawn on a timer up to the cap.
@@ -124,9 +125,9 @@ void ShooterGame::stepSim(float dt) {
     const glm::vec3 fwd = engine::forwardFromYaw(playerYaw);
     const entt::entity b = m_registry.create();
     m_registry.emplace<Transform>(b, playerPos + fwd * kNoseOffset, 0.35f,
-                                  playerYaw);
+                                  engine::headingToYaw(fwd));
     m_registry.emplace<Velocity>(b, fwd * kBulletSpeed);
-    m_registry.emplace<Bullet>(b, kBulletLife);
+    m_registry.emplace<Bullet>(b, kBulletLife, true);
     m_fireTimer = kFireCooldown;
   }
 
@@ -151,6 +152,7 @@ void ShooterGame::stepSim(float dt) {
   const int kWeight[3] = {1, 2, 3};
   std::vector<entt::entity> killed;
   for (const entt::entity b : m_registry.view<Transform, Bullet>()) {
+    if (!m_registry.get<Bullet>(b).fromPlayer) continue;
     const glm::vec3& bp = m_registry.get<Transform>(b).position;
     for (const entt::entity en : m_registry.view<Transform, Enemy>()) {
       const glm::vec3& ep = m_registry.get<Transform>(en).position;

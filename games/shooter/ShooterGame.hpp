@@ -50,6 +50,7 @@ class ShooterGame final : public engine::Layer {
   static constexpr float kSpawnRadius = 9.0f;
   static constexpr float kCullBound = 13.0f;
   static constexpr int kEnemyCap = 12;
+  static constexpr float kMaxHealth = 100.0f;
 };
 
 }  // namespace shooter
