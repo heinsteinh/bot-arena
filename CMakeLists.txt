@@ -18,6 +18,7 @@ find_package(yaml-cpp CONFIG REQUIRED)
 find_package(imgui CONFIG REQUIRED)
 find_package(Stb REQUIRED)
 find_package(freetype CONFIG REQUIRED)
+find_package(assimp CONFIG REQUIRED)
 find_package(Catch2 3 CONFIG REQUIRED)
 find_package(Threads REQUIRED)
 
@@ -45,6 +46,8 @@ add_library(bot_arena_engine STATIC
     engine/particles/ParticleSystem.cpp
 
     engine/imgui/ImGuiLayer.cpp
+
+    engine/assets/ModelLoader.cpp
 
     engine/renderer/RenderBackend.cpp
     engine/renderer/RenderQueue.cpp
@@ -76,6 +79,7 @@ target_link_libraries(bot_arena_engine
         yaml-cpp::yaml-cpp
         imgui::imgui
         freetype
+        assimp::assimp
         Threads::Threads
 )
 
