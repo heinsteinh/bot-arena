@@ -35,13 +35,11 @@ void ModelsGame::onUpdate(float dt) {
 void ModelsGame::onRender(engine::Renderer& renderer, int width, int height) {
   if (!m_resourcesReady) {
     const engine::ShaderHandle s = renderer.meshShader();
-    m_modelMat = renderer.registry().registerMaterial(
-        {{0.75f, 0.72f, 0.68f, 1.0f}, 0.15f, 0.5f, s});
     m_groundMat = renderer.registry().registerMaterial(
         {{0.14f, 0.15f, 0.18f, 1.0f}, 0.0f, 0.9f, s});
     for (Entry& e : m_entries) {
       e.model =
-          engine::loadModel(engine::assetPath(e.path), renderer.registry());
+          engine::loadModel(engine::assetPath(e.path), renderer.registry(), s);
     }
     m_resourcesReady = true;
   }
@@ -72,7 +70,9 @@ void ModelsGame::onRender(engine::Renderer& renderer, int width, int height) {
     const engine::Model& model = m_entries[m_selected].model;
     glm::mat4 m = glm::rotate(glm::mat4(1.0f), m_angle, {0.0f, 1.0f, 0.0f});
     m = m * engine::fitToUnitTransform(model.bounds);
-    meshes.submit(model.mesh, m_modelMat, m);
+    for (const engine::Submesh& sm : model.submeshes) {
+      meshes.submit(sm.mesh, sm.material, m);
+    }
   }
 }
 

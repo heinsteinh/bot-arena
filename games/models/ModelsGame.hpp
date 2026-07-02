@@ -21,7 +21,6 @@ class ModelsGame final : public engine::Layer {
  private:
   engine::OrbitCameraController m_camera;
   bool m_resourcesReady = false;
-  engine::MaterialHandle m_modelMat = 0;
   engine::MaterialHandle m_groundMat = 0;
 
   struct Entry {

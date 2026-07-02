@@ -1,5 +1,6 @@
 #include "engine/assets/ModelLoader.hpp"
 
+#include <assimp/material.h>
 #include <assimp/postprocess.h>
 #include <assimp/scene.h>
 #include <spdlog/spdlog.h>
@@ -13,43 +14,34 @@
 
 namespace engine {
 
-Model loadModel(const std::string& path, ResourceRegistry& registry) {
-  Assimp::Importer importer;
-  const aiScene* scene = importer.ReadFile(
-      path, aiProcess_Triangulate | aiProcess_GenSmoothNormals |
-                aiProcess_JoinIdenticalVertices |
-                aiProcess_PreTransformVertices);
-  if (!scene || (scene->mFlags & AI_SCENE_FLAGS_INCOMPLETE) ||
-      !scene->mRootNode) {
-    spdlog::error("Failed to load model {}: {}", path,
-                  importer.GetErrorString());
-    return Model{};
-  }
-
-  std::vector<float> verts;       // interleaved px,py,pz,nx,ny,nz
-  std::vector<uint32_t> indices;  // triangles
-  std::vector<glm::vec3> positions;
-  for (unsigned m = 0; m < scene->mNumMeshes; ++m) {
-    const aiMesh* mesh = scene->mMeshes[m];
-    const uint32_t base = static_cast<uint32_t>(positions.size());
-    for (unsigned i = 0; i < mesh->mNumVertices; ++i) {
-      const aiVector3D& p = mesh->mVertices[i];
-      const aiVector3D n =
-          mesh->mNormals ? mesh->mNormals[i] : aiVector3D(0.0f, 1.0f, 0.0f);
-      verts.insert(verts.end(), {p.x, p.y, p.z, n.x, n.y, n.z});
-      positions.push_back({p.x, p.y, p.z});
-    }
-    for (unsigned f = 0; f < mesh->mNumFaces; ++f) {
-      const aiFace& face = mesh->mFaces[f];
-      for (unsigned j = 0; j < face.mNumIndices; ++j) {
-        indices.push_back(base + face.mIndices[j]);
-      }
+namespace {
+glm::vec4 diffuseColor(const aiScene* scene, const aiMesh* mesh) {
+  glm::vec4 color(0.8f, 0.8f, 0.8f, 1.0f);
+  if (mesh->mMaterialIndex < scene->mNumMaterials) {
+    const aiMaterial* mat = scene->mMaterials[mesh->mMaterialIndex];
+    aiColor4D c;
+    if (aiGetMaterialColor(mat, AI_MATKEY_COLOR_DIFFUSE, &c) == AI_SUCCESS) {
+      color = {c.r, c.g, c.b, 1.0f};
     }
   }
+  return color;
+}
 
-  if (positions.empty() || indices.empty()) {
-    spdlog::error("Model {} has no geometry", path);
-    return Model{};
+MeshHandle buildMesh(const aiMesh* mesh, ResourceRegistry& registry) {
+  std::vector<float> verts;  // interleaved px,py,pz,nx,ny,nz
+  verts.reserve(mesh->mNumVertices * 6);
+  for (unsigned i = 0; i < mesh->mNumVertices; ++i) {
+    const aiVector3D& p = mesh->mVertices[i];
+    const aiVector3D n =
+        mesh->mNormals ? mesh->mNormals[i] : aiVector3D(0.0f, 1.0f, 0.0f);
+    verts.insert(verts.end(), {p.x, p.y, p.z, n.x, n.y, n.z});
+  }
+  std::vector<uint32_t> indices;
+  for (unsigned f = 0; f < mesh->mNumFaces; ++f) {
+    const aiFace& face = mesh->mFaces[f];
+    for (unsigned j = 0; j < face.mNumIndices; ++j) {
+      indices.push_back(face.mIndices[j]);
+    }
   }
 
   auto va = VertexArray::Create();
@@ -62,13 +54,50 @@ Model loadModel(const std::string& path, ResourceRegistry& registry) {
   va->addVertexBuffer(vb);
   va->setIndexBuffer(IndexBuffer::Create(
       indices.data(), static_cast<uint32_t>(indices.size())));
+  return registry.registerMesh(va);
+}
+}  // namespace
+
+Model loadModel(const std::string& path, ResourceRegistry& registry,
+                ShaderHandle shader) {
+  Assimp::Importer importer;
+  const aiScene* scene = importer.ReadFile(
+      path, aiProcess_Triangulate | aiProcess_GenSmoothNormals |
+                aiProcess_JoinIdenticalVertices |
+                aiProcess_PreTransformVertices);
+  if (!scene || (scene->mFlags & AI_SCENE_FLAGS_INCOMPLETE) ||
+      !scene->mRootNode) {
+    spdlog::error("Failed to load model {}: {}", path,
+                  importer.GetErrorString());
+    return Model{};
+  }
 
   Model model;
-  model.mesh = registry.registerMesh(va);
+  std::vector<glm::vec3> positions;
+  uint32_t totalTris = 0;
+  for (unsigned m = 0; m < scene->mNumMeshes; ++m) {
+    const aiMesh* mesh = scene->mMeshes[m];
+    if (mesh->mNumVertices == 0 || mesh->mNumFaces == 0) continue;
+    for (unsigned i = 0; i < mesh->mNumVertices; ++i) {
+      const aiVector3D& p = mesh->mVertices[i];
+      positions.push_back({p.x, p.y, p.z});
+    }
+    const MeshHandle meshHandle = buildMesh(mesh, registry);
+    const MaterialHandle mat = registry.registerMaterial(
+        {diffuseColor(scene, mesh), 0.0f, 0.55f, shader});
+    model.submeshes.push_back({meshHandle, mat});
+    totalTris += mesh->mNumFaces;
+  }
+
+  if (model.submeshes.empty()) {
+    spdlog::error("Model {} has no geometry", path);
+    return Model{};
+  }
+
   model.bounds = computeBounds(positions.data(), positions.size());
   model.valid = true;
-  spdlog::info("Loaded model {} ({} verts, {} tris)", path, positions.size(),
-               indices.size() / 3);
+  spdlog::info("Loaded model {} ({} submeshes, {} tris)", path,
+               model.submeshes.size(), totalTris);
   return model;
 }
 
