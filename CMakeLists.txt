@@ -108,6 +108,12 @@ add_executable(models_game
 )
 target_link_libraries(models_game PRIVATE bot_arena_engine)
 
+add_executable(shooter_game
+    games/shooter/main.cpp
+    games/shooter/ShooterGame.cpp
+)
+target_link_libraries(shooter_game PRIVATE bot_arena_engine)
+
 enable_testing()
 
 add_executable(bot_arena_tests
@@ -136,6 +142,7 @@ add_executable(bot_arena_tests
     tests/test_particle_system.cpp
     tests/test_mesh_bounds.cpp
     tests/test_texture_path.cpp
+    tests/test_ship_controls.cpp
 
     engine/core/Arena.cpp
     engine/particles/ParticleSystem.cpp
