@@ -702,6 +702,94 @@ unsigned int createSSAOBlurProgram() {
   return program;
 }
 
+unsigned int createBloomExtractProgram() {
+  constexpr const char* vs = R"(
+    #version 460 core
+    layout(location = 0) in vec2 a_position;
+    out vec2 v_uv;
+    void main() {
+      v_uv = a_position;
+      gl_Position = vec4(a_position * 2.0 - 1.0, 0.0, 1.0);
+    }
+  )";
+  constexpr const char* fs = R"(
+    #version 460 core
+    in vec2 v_uv;
+    out vec4 fragColor;
+    uniform sampler2D u_scene;
+    uniform float u_threshold;
+    void main() {
+      vec3 c = texture(u_scene, v_uv).rgb;
+      float lum = dot(c, vec3(0.2126, 0.7152, 0.0722));
+      fragColor = vec4(lum > u_threshold ? c : vec3(0.0), 1.0);
+    }
+  )";
+  const unsigned int v = compileShader(GL_VERTEX_SHADER, vs);
+  const unsigned int f = compileShader(GL_FRAGMENT_SHADER, fs);
+  const unsigned int program = glCreateProgram();
+  glAttachShader(program, v);
+  glAttachShader(program, f);
+  glLinkProgram(program);
+  glDeleteShader(v);
+  glDeleteShader(f);
+  int ok = 0;
+  glGetProgramiv(program, GL_LINK_STATUS, &ok);
+  if (!ok) {
+    char log[1024];
+    glGetProgramInfoLog(program, sizeof(log), nullptr, log);
+    throw std::runtime_error(log);
+  }
+  return program;
+}
+
+unsigned int createBloomBlurProgram() {
+  constexpr const char* vs = R"(
+    #version 460 core
+    layout(location = 0) in vec2 a_position;
+    out vec2 v_uv;
+    void main() {
+      v_uv = a_position;
+      gl_Position = vec4(a_position * 2.0 - 1.0, 0.0, 1.0);
+    }
+  )";
+  constexpr const char* fs = R"(
+    #version 460 core
+    in vec2 v_uv;
+    out vec4 fragColor;
+    uniform sampler2D u_image;
+    uniform bool u_horizontal;
+    const float w[5] = float[](0.227027, 0.1945946, 0.1216216, 0.054054,
+                               0.016216);
+    void main() {
+      vec2 texel = 1.0 / vec2(textureSize(u_image, 0));
+      vec3 result = texture(u_image, v_uv).rgb * w[0];
+      for (int i = 1; i < 5; ++i) {
+        vec2 off = u_horizontal ? vec2(texel.x * float(i), 0.0)
+                                : vec2(0.0, texel.y * float(i));
+        result += texture(u_image, v_uv + off).rgb * w[i];
+        result += texture(u_image, v_uv - off).rgb * w[i];
+      }
+      fragColor = vec4(result, 1.0);
+    }
+  )";
+  const unsigned int v = compileShader(GL_VERTEX_SHADER, vs);
+  const unsigned int f = compileShader(GL_FRAGMENT_SHADER, fs);
+  const unsigned int program = glCreateProgram();
+  glAttachShader(program, v);
+  glAttachShader(program, f);
+  glLinkProgram(program);
+  glDeleteShader(v);
+  glDeleteShader(f);
+  int ok = 0;
+  glGetProgramiv(program, GL_LINK_STATUS, &ok);
+  if (!ok) {
+    char log[1024];
+    glGetProgramInfoLog(program, sizeof(log), nullptr, log);
+    throw std::runtime_error(log);
+  }
+  return program;
+}
+
 }  // namespace
 
 OpenGLBackend::OpenGLBackend() {
@@ -744,6 +832,9 @@ OpenGLBackend::OpenGLBackend() {
               static_cast<int>(kernel.size()));
   glUniform1f(glGetUniformLocation(m_ssaoShader, "u_radius"), 0.5f);
   glUniform1f(glGetUniformLocation(m_ssaoShader, "u_bias"), 0.025f);
+
+  m_bloomExtractShader = createBloomExtractProgram();
+  m_bloomBlurShader = createBloomBlurProgram();
 }
 
 OpenGLBackend::~OpenGLBackend() {
@@ -756,6 +847,8 @@ OpenGLBackend::~OpenGLBackend() {
   if (m_brdfShader) glDeleteProgram(m_brdfShader);
   if (m_ssaoShader) glDeleteProgram(m_ssaoShader);
   if (m_ssaoBlurShader) glDeleteProgram(m_ssaoBlurShader);
+  if (m_bloomExtractShader) glDeleteProgram(m_bloomExtractShader);
+  if (m_bloomBlurShader) glDeleteProgram(m_bloomBlurShader);
   if (m_quadVbo) glDeleteBuffers(1, &m_quadVbo);
   if (m_quadVao) glDeleteVertexArrays(1, &m_quadVao);
 }
@@ -1031,6 +1124,29 @@ void OpenGLBackend::ssaoBlur(uint32_t aoRaw) {
 }
 
 void OpenGLBackend::setAO(uint32_t aoTexture) { m_ao = aoTexture; }
+
+void OpenGLBackend::bloomExtract(uint32_t sceneTex) {
+  glDisable(GL_DEPTH_TEST);
+  glUseProgram(m_bloomExtractShader);
+  glBindTextureUnit(0, sceneTex);
+  glUniform1i(glGetUniformLocation(m_bloomExtractShader, "u_scene"), 0);
+  glUniform1f(glGetUniformLocation(m_bloomExtractShader, "u_threshold"), 1.0f);
+  glBindVertexArray(m_quadVao);
+  glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+  glBindVertexArray(0);
+}
+
+void OpenGLBackend::bloomBlur(uint32_t src, bool horizontal) {
+  glDisable(GL_DEPTH_TEST);
+  glUseProgram(m_bloomBlurShader);
+  glBindTextureUnit(0, src);
+  glUniform1i(glGetUniformLocation(m_bloomBlurShader, "u_image"), 0);
+  glUniform1i(glGetUniformLocation(m_bloomBlurShader, "u_horizontal"),
+              horizontal ? 1 : 0);
+  glBindVertexArray(m_quadVao);
+  glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+  glBindVertexArray(0);
+}
 
 void OpenGLBackend::readPixels(int x, int y, int width, int height, void* out) {
   glPixelStorei(GL_PACK_ALIGNMENT, 1);

@@ -35,6 +35,8 @@ class OpenGLBackend final : public RenderBackend {
   void ssaoPass(uint32_t gNormal, uint32_t gWorldPos) override;
   void ssaoBlur(uint32_t aoRaw) override;
   void setAO(uint32_t aoTexture) override;
+  void bloomExtract(uint32_t sceneTex) override;
+  void bloomBlur(uint32_t src, bool horizontal) override;
   void executeShadow(const std::vector<RenderEntry>& entries,
                      const glm::mat4& lightViewProj, Arena& scratch,
                      const ResourceRegistry& registry) override;
@@ -71,6 +73,9 @@ class OpenGLBackend final : public RenderBackend {
   unsigned int m_ssaoShader = 0;
   unsigned int m_ssaoBlurShader = 0;
   unsigned int m_ao = 0;
+
+  unsigned int m_bloomExtractShader = 0;
+  unsigned int m_bloomBlurShader = 0;
 };
 
 }  // namespace engine

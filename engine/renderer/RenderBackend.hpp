@@ -56,6 +56,10 @@ class RenderBackend {
   // Remember the AO texture the lighting pass multiplies the ambient by (unit
   // 8).
   virtual void setAO(uint32_t aoTexture) = 0;
+  // Bright-pass the HDR scene into the bound (half-res) target.
+  virtual void bloomExtract(uint32_t sceneTex) = 0;
+  // One separable-Gaussian blur pass into the bound target.
+  virtual void bloomBlur(uint32_t src, bool horizontal) = 0;
   // Render mesh depth from the light's POV into the bound depth target.
   virtual void executeShadow(const std::vector<RenderEntry>& entries,
                              const glm::mat4& lightViewProj, Arena& scratch,
