@@ -13,6 +13,7 @@
 #include "engine/renderer/LightUniforms.hpp"
 #include "engine/renderer/PointLight.hpp"
 #include "engine/renderer/ResourceRegistry.hpp"
+#include "engine/renderer/SSAOKernel.hpp"
 #include "engine/renderer/Shader.hpp"
 #include "engine/renderer/UniformBuffer.hpp"
 #include "engine/renderer/VertexArray.hpp"
@@ -53,16 +54,14 @@ unsigned int compileShader(unsigned int type, const char* source) {
   return shader;
 }
 
-unsigned int createBlitProgram() {
+unsigned int createCompositeProgram() {
   constexpr const char* vs = R"(
     #version 460 core
     layout(location = 0) in vec2 a_position;   // unit quad [0,1]^2
-    uniform vec4 u_rect;                        // {x0,y0,x1,y1} in NDC
     out vec2 v_uv;
     void main() {
       v_uv = a_position;
-      vec2 ndc = mix(u_rect.xy, u_rect.zw, a_position);
-      gl_Position = vec4(ndc, 0.0, 1.0);
+      gl_Position = vec4(a_position * 2.0 - 1.0, 0.0, 1.0);
     }
   )";
   constexpr const char* fs = R"(
@@ -70,11 +69,14 @@ unsigned int createBlitProgram() {
     in vec2 v_uv;
     out vec4 fragColor;
     uniform sampler2D u_scene;
+    uniform sampler2D u_bloom;
+    uniform float u_bloomIntensity;
     void main() {
-      vec3 c = texture(u_scene, v_uv).rgb;
-      c = c / (c + vec3(1.0));        // Reinhard tonemap
-      c = pow(c, vec3(1.0 / 2.2));    // gamma
-      fragColor = vec4(c, 1.0);
+      vec3 hdr = texture(u_scene, v_uv).rgb +
+                 texture(u_bloom, v_uv).rgb * u_bloomIntensity;
+      hdr = hdr / (hdr + vec3(1.0));   // Reinhard tonemap
+      hdr = pow(hdr, vec3(1.0 / 2.2)); // gamma
+      fragColor = vec4(hdr, 1.0);
     }
   )";
   const unsigned int v = compileShader(GL_VERTEX_SHADER, vs);
@@ -152,6 +154,7 @@ unsigned int createLightingProgram() {
     uniform samplerCube u_irradiance;
     uniform samplerCube u_prefilter;
     uniform sampler2D u_brdfLUT;
+    uniform sampler2D u_ao;
     uniform int u_prefilterMips;
 
     layout(std140, binding = 0) uniform Camera {
@@ -254,7 +257,8 @@ unsigned int createLightingProgram() {
           textureLod(u_prefilter, R, rough * float(u_prefilterMips - 1)).rgb;
       vec2 ab = texture(u_brdfLUT, vec2(NoV, rough)).rg;
       vec3 specularIBL = prefiltered * (Famb * ab.x + ab.y);
-      vec3 color = kdAmb * diffuseIBL + specularIBL;
+      float ao = texture(u_ao, v_uv).r;
+      vec3 color = (kdAmb * diffuseIBL + specularIBL) * ao;
 
       // Directional light (shadowed).
       vec3 L = normalize(u_lightDir.xyz);
@@ -575,12 +579,224 @@ unsigned int createBrdfProgram() {
   return program;
 }
 
+unsigned int createSSAOProgram() {
+  constexpr const char* vs = R"(
+    #version 460 core
+    layout(location = 0) in vec2 a_position;
+    out vec2 v_uv;
+    void main() {
+      v_uv = a_position;
+      gl_Position = vec4(a_position * 2.0 - 1.0, 0.0, 1.0);
+    }
+  )";
+  constexpr const char* fs = R"(
+    #version 460 core
+    in vec2 v_uv;
+    out vec4 fragColor;
+    uniform sampler2D u_gNormal;
+    uniform sampler2D u_gWorldPos;
+    layout(std140, binding = 0) uniform Camera {
+      mat4 u_view;
+      mat4 u_projection;
+      mat4 u_viewProjection;
+      vec4 u_cameraPos;
+      mat4 u_invViewProjection;
+    };
+    uniform vec3 u_kernel[64];
+    uniform int u_kernelSize;
+    uniform float u_radius;
+    uniform float u_bias;
+    float hash(vec2 p) {
+      return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453);
+    }
+    void main() {
+      vec4 nS = texture(u_gNormal, v_uv);
+      if (dot(nS.xyz, nS.xyz) < 0.5) {  // background: no occlusion
+        fragColor = vec4(1.0);
+        return;
+      }
+      vec3 worldPos = texture(u_gWorldPos, v_uv).xyz;
+      vec3 viewPos = (u_view * vec4(worldPos, 1.0)).xyz;
+      vec3 N = normalize(mat3(u_view) * nS.xyz);
+      float a = hash(gl_FragCoord.xy) * 6.2831853;
+      vec3 randomVec = vec3(cos(a), sin(a), 0.0);
+      vec3 tangent = normalize(randomVec - N * dot(randomVec, N));
+      vec3 bitangent = cross(N, tangent);
+      mat3 TBN = mat3(tangent, bitangent, N);
+      float occlusion = 0.0;
+      for (int i = 0; i < u_kernelSize; ++i) {
+        vec3 samplePos = viewPos + TBN * u_kernel[i] * u_radius;
+        vec4 offset = u_projection * vec4(samplePos, 1.0);
+        offset.xyz /= offset.w;
+        offset.xyz = offset.xyz * 0.5 + 0.5;
+        if (offset.x < 0.0 || offset.x > 1.0 || offset.y < 0.0 ||
+            offset.y > 1.0)
+          continue;
+        vec3 sWorld = texture(u_gWorldPos, offset.xy).xyz;
+        float sampleDepth = (u_view * vec4(sWorld, 1.0)).z;
+        float rangeCheck = smoothstep(
+            0.0, 1.0, u_radius / max(abs(viewPos.z - sampleDepth), 0.0001));
+        occlusion +=
+            (sampleDepth >= samplePos.z + u_bias ? 1.0 : 0.0) * rangeCheck;
+      }
+      float ao = 1.0 - occlusion / float(u_kernelSize);
+      fragColor = vec4(vec3(ao), 1.0);
+    }
+  )";
+  const unsigned int v = compileShader(GL_VERTEX_SHADER, vs);
+  const unsigned int f = compileShader(GL_FRAGMENT_SHADER, fs);
+  const unsigned int program = glCreateProgram();
+  glAttachShader(program, v);
+  glAttachShader(program, f);
+  glLinkProgram(program);
+  glDeleteShader(v);
+  glDeleteShader(f);
+  int ok = 0;
+  glGetProgramiv(program, GL_LINK_STATUS, &ok);
+  if (!ok) {
+    char log[1024];
+    glGetProgramInfoLog(program, sizeof(log), nullptr, log);
+    throw std::runtime_error(log);
+  }
+  return program;
+}
+
+unsigned int createSSAOBlurProgram() {
+  constexpr const char* vs = R"(
+    #version 460 core
+    layout(location = 0) in vec2 a_position;
+    out vec2 v_uv;
+    void main() {
+      v_uv = a_position;
+      gl_Position = vec4(a_position * 2.0 - 1.0, 0.0, 1.0);
+    }
+  )";
+  constexpr const char* fs = R"(
+    #version 460 core
+    in vec2 v_uv;
+    out vec4 fragColor;
+    uniform sampler2D u_ssao;
+    void main() {
+      vec2 texel = 1.0 / vec2(textureSize(u_ssao, 0));
+      float result = 0.0;
+      for (int x = -2; x < 2; ++x)
+        for (int y = -2; y < 2; ++y)
+          result += texture(u_ssao, v_uv + vec2(x, y) * texel).r;
+      fragColor = vec4(vec3(result / 16.0), 1.0);
+    }
+  )";
+  const unsigned int v = compileShader(GL_VERTEX_SHADER, vs);
+  const unsigned int f = compileShader(GL_FRAGMENT_SHADER, fs);
+  const unsigned int program = glCreateProgram();
+  glAttachShader(program, v);
+  glAttachShader(program, f);
+  glLinkProgram(program);
+  glDeleteShader(v);
+  glDeleteShader(f);
+  int ok = 0;
+  glGetProgramiv(program, GL_LINK_STATUS, &ok);
+  if (!ok) {
+    char log[1024];
+    glGetProgramInfoLog(program, sizeof(log), nullptr, log);
+    throw std::runtime_error(log);
+  }
+  return program;
+}
+
+unsigned int createBloomExtractProgram() {
+  constexpr const char* vs = R"(
+    #version 460 core
+    layout(location = 0) in vec2 a_position;
+    out vec2 v_uv;
+    void main() {
+      v_uv = a_position;
+      gl_Position = vec4(a_position * 2.0 - 1.0, 0.0, 1.0);
+    }
+  )";
+  constexpr const char* fs = R"(
+    #version 460 core
+    in vec2 v_uv;
+    out vec4 fragColor;
+    uniform sampler2D u_scene;
+    uniform float u_threshold;
+    void main() {
+      vec3 c = texture(u_scene, v_uv).rgb;
+      float lum = dot(c, vec3(0.2126, 0.7152, 0.0722));
+      fragColor = vec4(lum > u_threshold ? c : vec3(0.0), 1.0);
+    }
+  )";
+  const unsigned int v = compileShader(GL_VERTEX_SHADER, vs);
+  const unsigned int f = compileShader(GL_FRAGMENT_SHADER, fs);
+  const unsigned int program = glCreateProgram();
+  glAttachShader(program, v);
+  glAttachShader(program, f);
+  glLinkProgram(program);
+  glDeleteShader(v);
+  glDeleteShader(f);
+  int ok = 0;
+  glGetProgramiv(program, GL_LINK_STATUS, &ok);
+  if (!ok) {
+    char log[1024];
+    glGetProgramInfoLog(program, sizeof(log), nullptr, log);
+    throw std::runtime_error(log);
+  }
+  return program;
+}
+
+unsigned int createBloomBlurProgram() {
+  constexpr const char* vs = R"(
+    #version 460 core
+    layout(location = 0) in vec2 a_position;
+    out vec2 v_uv;
+    void main() {
+      v_uv = a_position;
+      gl_Position = vec4(a_position * 2.0 - 1.0, 0.0, 1.0);
+    }
+  )";
+  constexpr const char* fs = R"(
+    #version 460 core
+    in vec2 v_uv;
+    out vec4 fragColor;
+    uniform sampler2D u_image;
+    uniform bool u_horizontal;
+    const float w[5] = float[](0.227027, 0.1945946, 0.1216216, 0.054054,
+                               0.016216);
+    void main() {
+      vec2 texel = 1.0 / vec2(textureSize(u_image, 0));
+      vec3 result = texture(u_image, v_uv).rgb * w[0];
+      for (int i = 1; i < 5; ++i) {
+        vec2 off = u_horizontal ? vec2(texel.x * float(i), 0.0)
+                                : vec2(0.0, texel.y * float(i));
+        result += texture(u_image, v_uv + off).rgb * w[i];
+        result += texture(u_image, v_uv - off).rgb * w[i];
+      }
+      fragColor = vec4(result, 1.0);
+    }
+  )";
+  const unsigned int v = compileShader(GL_VERTEX_SHADER, vs);
+  const unsigned int f = compileShader(GL_FRAGMENT_SHADER, fs);
+  const unsigned int program = glCreateProgram();
+  glAttachShader(program, v);
+  glAttachShader(program, f);
+  glLinkProgram(program);
+  glDeleteShader(v);
+  glDeleteShader(f);
+  int ok = 0;
+  glGetProgramiv(program, GL_LINK_STATUS, &ok);
+  if (!ok) {
+    char log[1024];
+    glGetProgramInfoLog(program, sizeof(log), nullptr, log);
+    throw std::runtime_error(log);
+  }
+  return program;
+}
+
 }  // namespace
 
 OpenGLBackend::OpenGLBackend() {
   m_cameraUBO = UniformBuffer::Create(sizeof(CameraUniforms), 0);
 
-  m_blitShader = createBlitProgram();
+  m_compositeShader = createCompositeProgram();
 
   // Unit quad [0,1]^2 as a triangle strip: (0,0),(1,0),(0,1),(1,1).
   const float quad[] = {0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f};
@@ -606,16 +822,34 @@ OpenGLBackend::OpenGLBackend() {
   m_irradianceShader = createIrradianceProgram();
   m_prefilterShader = createPrefilterProgram();
   m_brdfShader = createBrdfProgram();
+
+  m_ssaoShader = createSSAOProgram();
+  m_ssaoBlurShader = createSSAOBlurProgram();
+  const std::vector<glm::vec3> kernel = generateSSAOKernel(32);
+  glUseProgram(m_ssaoShader);
+  glUniform3fv(glGetUniformLocation(m_ssaoShader, "u_kernel"),
+               static_cast<GLsizei>(kernel.size()), glm::value_ptr(kernel[0]));
+  glUniform1i(glGetUniformLocation(m_ssaoShader, "u_kernelSize"),
+              static_cast<int>(kernel.size()));
+  glUniform1f(glGetUniformLocation(m_ssaoShader, "u_radius"), 0.5f);
+  glUniform1f(glGetUniformLocation(m_ssaoShader, "u_bias"), 0.025f);
+
+  m_bloomExtractShader = createBloomExtractProgram();
+  m_bloomBlurShader = createBloomBlurProgram();
 }
 
 OpenGLBackend::~OpenGLBackend() {
-  if (m_blitShader) glDeleteProgram(m_blitShader);
+  if (m_compositeShader) glDeleteProgram(m_compositeShader);
   if (m_shadowShader) glDeleteProgram(m_shadowShader);
   if (m_lightingShader) glDeleteProgram(m_lightingShader);
   if (m_skyShader) glDeleteProgram(m_skyShader);
   if (m_irradianceShader) glDeleteProgram(m_irradianceShader);
   if (m_prefilterShader) glDeleteProgram(m_prefilterShader);
   if (m_brdfShader) glDeleteProgram(m_brdfShader);
+  if (m_ssaoShader) glDeleteProgram(m_ssaoShader);
+  if (m_ssaoBlurShader) glDeleteProgram(m_ssaoBlurShader);
+  if (m_bloomExtractShader) glDeleteProgram(m_bloomExtractShader);
+  if (m_bloomBlurShader) glDeleteProgram(m_bloomBlurShader);
   if (m_quadVbo) glDeleteBuffers(1, &m_quadVbo);
   if (m_quadVao) glDeleteVertexArrays(1, &m_quadVao);
 }
@@ -722,6 +956,7 @@ void OpenGLBackend::lightingPass(uint32_t gAlbedo, uint32_t gNormal,
   glBindTextureUnit(5, m_irradianceMap);
   glBindTextureUnit(6, m_prefilterMap);
   glBindTextureUnit(7, m_brdfLUT);
+  glBindTextureUnit(8, m_ao);
   glUniform1i(glGetUniformLocation(m_lightingShader, "u_gAlbedo"), 0);
   glUniform1i(glGetUniformLocation(m_lightingShader, "u_gNormal"), 1);
   glUniform1i(glGetUniformLocation(m_lightingShader, "u_gWorldPos"), 2);
@@ -730,6 +965,7 @@ void OpenGLBackend::lightingPass(uint32_t gAlbedo, uint32_t gNormal,
   glUniform1i(glGetUniformLocation(m_lightingShader, "u_irradiance"), 5);
   glUniform1i(glGetUniformLocation(m_lightingShader, "u_prefilter"), 6);
   glUniform1i(glGetUniformLocation(m_lightingShader, "u_brdfLUT"), 7);
+  glUniform1i(glGetUniformLocation(m_lightingShader, "u_ao"), 8);
   glUniform1i(glGetUniformLocation(m_lightingShader, "u_prefilterMips"),
               m_prefilterMips);
   glBindVertexArray(m_quadVao);
@@ -837,14 +1073,15 @@ void OpenGLBackend::prefilterEnvironment(uint32_t env, uint32_t prefilterCube,
   glDeleteFramebuffers(1, &fbo);
 }
 
-void OpenGLBackend::blit(uint32_t sourceColorTexture,
-                         const glm::vec4& dstRectNDC) {
+void OpenGLBackend::compositeBloom(uint32_t sceneTex, uint32_t bloomTex) {
   glDisable(GL_DEPTH_TEST);
-  glUseProgram(m_blitShader);
-  glBindTextureUnit(0, sourceColorTexture);
-  glUniform1i(glGetUniformLocation(m_blitShader, "u_scene"), 0);
-  glUniform4f(glGetUniformLocation(m_blitShader, "u_rect"), dstRectNDC.x,
-              dstRectNDC.y, dstRectNDC.z, dstRectNDC.w);
+  glUseProgram(m_compositeShader);
+  glBindTextureUnit(0, sceneTex);
+  glBindTextureUnit(1, bloomTex);
+  glUniform1i(glGetUniformLocation(m_compositeShader, "u_scene"), 0);
+  glUniform1i(glGetUniformLocation(m_compositeShader, "u_bloom"), 1);
+  glUniform1f(glGetUniformLocation(m_compositeShader, "u_bloomIntensity"),
+              1.0f);
   glBindVertexArray(m_quadVao);
   glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
   glBindVertexArray(0);
@@ -864,6 +1101,53 @@ void OpenGLBackend::setIBL(uint32_t irradiance, uint32_t prefilter,
   m_prefilterMap = prefilter;
   m_brdfLUT = brdfLUT;
   m_prefilterMips = prefilterMips;
+}
+
+void OpenGLBackend::ssaoPass(uint32_t gNormal, uint32_t gWorldPos) {
+  glDisable(GL_DEPTH_TEST);
+  glUseProgram(m_ssaoShader);
+  glBindTextureUnit(0, gNormal);
+  glBindTextureUnit(1, gWorldPos);
+  glUniform1i(glGetUniformLocation(m_ssaoShader, "u_gNormal"), 0);
+  glUniform1i(glGetUniformLocation(m_ssaoShader, "u_gWorldPos"), 1);
+  glBindVertexArray(m_quadVao);
+  glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+  glBindVertexArray(0);
+}
+
+void OpenGLBackend::ssaoBlur(uint32_t aoRaw) {
+  glDisable(GL_DEPTH_TEST);
+  glUseProgram(m_ssaoBlurShader);
+  glBindTextureUnit(0, aoRaw);
+  glUniform1i(glGetUniformLocation(m_ssaoBlurShader, "u_ssao"), 0);
+  glBindVertexArray(m_quadVao);
+  glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+  glBindVertexArray(0);
+}
+
+void OpenGLBackend::setAO(uint32_t aoTexture) { m_ao = aoTexture; }
+
+void OpenGLBackend::bloomExtract(uint32_t sceneTex) {
+  glDisable(GL_DEPTH_TEST);
+  glUseProgram(m_bloomExtractShader);
+  glBindTextureUnit(0, sceneTex);
+  glUniform1i(glGetUniformLocation(m_bloomExtractShader, "u_scene"), 0);
+  glUniform1f(glGetUniformLocation(m_bloomExtractShader, "u_threshold"), 0.45f);
+  glBindVertexArray(m_quadVao);
+  glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+  glBindVertexArray(0);
+}
+
+void OpenGLBackend::bloomBlur(uint32_t src, bool horizontal) {
+  glDisable(GL_DEPTH_TEST);
+  glUseProgram(m_bloomBlurShader);
+  glBindTextureUnit(0, src);
+  glUniform1i(glGetUniformLocation(m_bloomBlurShader, "u_image"), 0);
+  glUniform1i(glGetUniformLocation(m_bloomBlurShader, "u_horizontal"),
+              horizontal ? 1 : 0);
+  glBindVertexArray(m_quadVao);
+  glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+  glBindVertexArray(0);
 }
 
 void OpenGLBackend::readPixels(int x, int y, int width, int height, void* out) {

@@ -65,6 +65,16 @@ Renderer::Renderer(JobSystem& jobs)
   m_backend->integrateBRDF();
   m_backend->setIBL(m_irradianceMap->rendererID(), m_prefilterMap->rendererID(),
                     m_brdfFBO->colorAttachment(), kPrefilterMips);
+
+  FramebufferSpec ssaoSpec;
+  ssaoSpec.colorFormats = {FramebufferFormat::RGBA8};
+  m_ssaoFBO = Framebuffer::Create(ssaoSpec);
+  m_ssaoBlurFBO = Framebuffer::Create(ssaoSpec);
+
+  FramebufferSpec bloomSpec;
+  bloomSpec.colorFormats = {FramebufferFormat::RGBA16F};
+  m_bloomFBO[0] = Framebuffer::Create(bloomSpec);
+  m_bloomFBO[1] = Framebuffer::Create(bloomSpec);
 }
 
 void Renderer::initBuiltins() {
@@ -124,6 +134,14 @@ void Renderer::beginFrame(int width, int height) {
                      static_cast<uint32_t>(height));
   m_gbufferFBO->resize(static_cast<uint32_t>(width),
                        static_cast<uint32_t>(height));
+  m_ssaoFBO->resize(static_cast<uint32_t>(width),
+                    static_cast<uint32_t>(height));
+  m_ssaoBlurFBO->resize(static_cast<uint32_t>(width),
+                        static_cast<uint32_t>(height));
+  const uint32_t halfW = static_cast<uint32_t>(width) / 2;
+  const uint32_t halfH = static_cast<uint32_t>(height) / 2;
+  m_bloomFBO[0]->resize(halfW, halfH);
+  m_bloomFBO[1]->resize(halfW, halfH);
 }
 
 void Renderer::generateMeshes(
@@ -158,6 +176,16 @@ void Renderer::endFrame() {
                        m_gbufferPass.clearDepth, m_width, m_height);
   m_backend->executeGeometry(m_merged, m_camera, m_lanes[0]->arena, m_registry);
 
+  // SSAO pass -> ambient occlusion (reads the G-buffer normal + world-pos).
+  m_backend->beginPass(m_ssaoFBO.get(), {1.0f, 1.0f, 1.0f, 1.0f}, false,
+                       m_width, m_height);
+  m_backend->ssaoPass(m_gbufferFBO->colorAttachment(1),
+                      m_gbufferFBO->colorAttachment(2));
+  m_backend->beginPass(m_ssaoBlurFBO.get(), {1.0f, 1.0f, 1.0f, 1.0f}, false,
+                       m_width, m_height);
+  m_backend->ssaoBlur(m_ssaoFBO->colorAttachment());
+  m_backend->setAO(m_ssaoBlurFBO->colorAttachment());
+
   // Lighting pass -> HDR scene framebuffer (fullscreen, reads the G-buffer).
   m_backend->beginPass(m_scenePass.target.get(), {0.0f, 0.0f, 0.0f, 1.0f},
                        false, m_width, m_height);
@@ -165,10 +193,28 @@ void Renderer::endFrame() {
       m_gbufferFBO->colorAttachment(0), m_gbufferFBO->colorAttachment(1),
       m_gbufferFBO->colorAttachment(2), m_shadowFBO->depthAttachment());
 
-  // Composite pass -> default framebuffer (tonemap).
+  // Bloom: bright-pass the HDR scene, then ping-pong separable Gaussian blur.
+  const int halfW = m_width / 2;
+  const int halfH = m_height / 2;
+  m_backend->beginPass(m_bloomFBO[0].get(), {0.0f, 0.0f, 0.0f, 1.0f}, false,
+                       halfW, halfH);
+  m_backend->bloomExtract(m_sceneFBO->colorAttachment());
+  int src = 0;
+  bool horizontal = true;
+  for (int i = 0; i < kBloomBlurPasses * 2; ++i) {
+    const int dst = 1 - src;
+    m_backend->beginPass(m_bloomFBO[dst].get(), {0.0f, 0.0f, 0.0f, 1.0f}, false,
+                         halfW, halfH);
+    m_backend->bloomBlur(m_bloomFBO[src]->colorAttachment(), horizontal);
+    src = dst;
+    horizontal = !horizontal;
+  }
+
+  // Composite pass -> default framebuffer (scene + bloom, tonemap).
   m_backend->beginPass(m_compositePass.target.get(), m_compositePass.clearColor,
                        m_compositePass.clearDepth, m_width, m_height);
-  m_backend->blit(m_sceneFBO->colorAttachment(), {-1.0f, -1.0f, 1.0f, 1.0f});
+  m_backend->compositeBloom(m_sceneFBO->colorAttachment(),
+                            m_bloomFBO[src]->colorAttachment());
 }
 
 void Renderer::setPointLights(const std::vector<PointLight>& lights) {

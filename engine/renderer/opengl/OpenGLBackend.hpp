@@ -32,17 +32,22 @@ class OpenGLBackend final : public RenderBackend {
   void integrateBRDF() override;
   void setIBL(uint32_t irradiance, uint32_t prefilter, uint32_t brdfLUT,
               int prefilterMips) override;
+  void ssaoPass(uint32_t gNormal, uint32_t gWorldPos) override;
+  void ssaoBlur(uint32_t aoRaw) override;
+  void setAO(uint32_t aoTexture) override;
+  void bloomExtract(uint32_t sceneTex) override;
+  void bloomBlur(uint32_t src, bool horizontal) override;
   void executeShadow(const std::vector<RenderEntry>& entries,
                      const glm::mat4& lightViewProj, Arena& scratch,
                      const ResourceRegistry& registry) override;
   void setLight(const LightUniforms& light, uint32_t shadowMapTexture) override;
-  void blit(uint32_t sourceColorTexture, const glm::vec4& dstRectNDC) override;
+  void compositeBloom(uint32_t sceneTex, uint32_t bloomTex) override;
   void readPixels(int x, int y, int width, int height, void* out) override;
 
  private:
   Ref<UniformBuffer> m_cameraUBO;
 
-  unsigned int m_blitShader = 0;
+  unsigned int m_compositeShader = 0;
   unsigned int m_quadVao = 0;
   unsigned int m_quadVbo = 0;
 
@@ -64,6 +69,13 @@ class OpenGLBackend final : public RenderBackend {
   unsigned int m_prefilterMap = 0;
   unsigned int m_brdfLUT = 0;
   int m_prefilterMips = 1;
+
+  unsigned int m_ssaoShader = 0;
+  unsigned int m_ssaoBlurShader = 0;
+  unsigned int m_ao = 0;
+
+  unsigned int m_bloomExtractShader = 0;
+  unsigned int m_bloomBlurShader = 0;
 };
 
 }  // namespace engine

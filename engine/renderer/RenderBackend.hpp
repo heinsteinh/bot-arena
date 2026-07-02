@@ -49,6 +49,17 @@ class RenderBackend {
   // Remember the IBL maps the lighting pass samples (units 5/6/7).
   virtual void setIBL(uint32_t irradiance, uint32_t prefilter, uint32_t brdfLUT,
                       int prefilterMips) = 0;
+  // Screen-space ambient occlusion: read the G-buffer, write AO to the target.
+  virtual void ssaoPass(uint32_t gNormal, uint32_t gWorldPos) = 0;
+  // Box-blur the raw AO into the bound target.
+  virtual void ssaoBlur(uint32_t aoRaw) = 0;
+  // Remember the AO texture the lighting pass multiplies the ambient by (unit
+  // 8).
+  virtual void setAO(uint32_t aoTexture) = 0;
+  // Bright-pass the HDR scene into the bound (half-res) target.
+  virtual void bloomExtract(uint32_t sceneTex) = 0;
+  // One separable-Gaussian blur pass into the bound target.
+  virtual void bloomBlur(uint32_t src, bool horizontal) = 0;
   // Render mesh depth from the light's POV into the bound depth target.
   virtual void executeShadow(const std::vector<RenderEntry>& entries,
                              const glm::mat4& lightViewProj, Arena& scratch,
@@ -58,8 +69,8 @@ class RenderBackend {
                         uint32_t shadowMapTexture) = 0;
   // Draw a tonemapped quad sampling `sourceColorTexture` into the bound target,
   // covering the NDC rectangle {x0,y0,x1,y1}.
-  virtual void blit(uint32_t sourceColorTexture,
-                    const glm::vec4& dstRectNDC) = 0;
+  // Add bloom to the HDR scene and tonemap into the bound target (fullscreen).
+  virtual void compositeBloom(uint32_t sceneTex, uint32_t bloomTex) = 0;
   virtual void readPixels(int x, int y, int width, int height, void* out) = 0;
 
   static Scope<RenderBackend> Create();
