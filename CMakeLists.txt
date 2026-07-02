@@ -40,6 +40,8 @@ add_library(bot_arena_engine STATIC
     engine/renderer/opengl/OpenGLTextureCube.cpp
     engine/renderer/opengl/OpenGLTexture2D.cpp
 
+    engine/renderer/text/Font.cpp
+
     engine/renderer/RenderBackend.cpp
     engine/renderer/RenderQueue.cpp
     engine/renderer/Renderer.cpp
