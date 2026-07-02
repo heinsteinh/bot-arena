@@ -99,6 +99,8 @@ add_executable(bot_arena_tests
     tests/test_light_view_proj.cpp
     tests/test_point_light_ring.cpp
     tests/test_ssao_kernel.cpp
+    tests/test_wall_bounce.cpp
+    tests/test_fixed_timestep.cpp
 
     engine/core/Arena.cpp
     engine/core/JobSystem.cpp
