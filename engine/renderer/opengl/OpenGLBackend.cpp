@@ -470,6 +470,96 @@ unsigned int createPrefilterProgram() {
   return program;
 }
 
+unsigned int createBrdfProgram() {
+  constexpr const char* vs = R"(
+    #version 460 core
+    layout(location = 0) in vec2 a_position;
+    out vec2 v_uv;
+    void main() {
+      v_uv = a_position;
+      gl_Position = vec4(a_position * 2.0 - 1.0, 0.0, 1.0);
+    }
+  )";
+  constexpr const char* fs = R"(
+    #version 460 core
+    in vec2 v_uv;
+    out vec4 fragColor;
+    const float PI = 3.14159265359;
+    float radicalInverse(uint bits) {
+      bits = (bits << 16u) | (bits >> 16u);
+      bits = ((bits & 0x55555555u) << 1u) | ((bits & 0xAAAAAAAAu) >> 1u);
+      bits = ((bits & 0x33333333u) << 2u) | ((bits & 0xCCCCCCCCu) >> 2u);
+      bits = ((bits & 0x0F0F0F0Fu) << 4u) | ((bits & 0xF0F0F0F0u) >> 4u);
+      bits = ((bits & 0x00FF00FFu) << 8u) | ((bits & 0xFF00FF00u) >> 8u);
+      return float(bits) * 2.3283064365386963e-10;
+    }
+    vec2 hammersley(uint i, uint n) {
+      return vec2(float(i) / float(n), radicalInverse(i));
+    }
+    vec3 importanceSampleGGX(vec2 Xi, vec3 N, float rough) {
+      float a = rough * rough;
+      float phi = 2.0 * PI * Xi.x;
+      float cosT = sqrt((1.0 - Xi.y) / (1.0 + (a * a - 1.0) * Xi.y));
+      float sinT = sqrt(1.0 - cosT * cosT);
+      vec3 H = vec3(cos(phi) * sinT, sin(phi) * sinT, cosT);
+      vec3 up = abs(N.z) < 0.999 ? vec3(0.0, 0.0, 1.0) : vec3(1.0, 0.0, 0.0);
+      vec3 tangent = normalize(cross(up, N));
+      vec3 bitangent = cross(N, tangent);
+      return normalize(tangent * H.x + bitangent * H.y + N * H.z);
+    }
+    float geometrySchlickGGX(float ndv, float rough) {
+      float k = (rough * rough) / 2.0;
+      return ndv / (ndv * (1.0 - k) + k);
+    }
+    float geometrySmith(vec3 N, vec3 V, vec3 L, float rough) {
+      return geometrySchlickGGX(max(dot(N, V), 0.0), rough) *
+             geometrySchlickGGX(max(dot(N, L), 0.0), rough);
+    }
+    vec2 integrateBRDF(float ndv, float rough) {
+      vec3 V = vec3(sqrt(1.0 - ndv * ndv), 0.0, ndv);
+      vec3 N = vec3(0.0, 0.0, 1.0);
+      float A = 0.0;
+      float B = 0.0;
+      const uint SAMPLES = 1024u;
+      for (uint i = 0u; i < SAMPLES; ++i) {
+        vec2 Xi = hammersley(i, SAMPLES);
+        vec3 H = importanceSampleGGX(Xi, N, rough);
+        vec3 L = normalize(2.0 * dot(V, H) * H - V);
+        float ndl = max(L.z, 0.0);
+        float ndh = max(H.z, 0.0);
+        float vdh = max(dot(V, H), 0.0);
+        if (ndl > 0.0) {
+          float G = geometrySmith(N, V, L, rough);
+          float gVis = (G * vdh) / (ndh * ndv);
+          float Fc = pow(1.0 - vdh, 5.0);
+          A += (1.0 - Fc) * gVis;
+          B += Fc * gVis;
+        }
+      }
+      return vec2(A, B) / float(SAMPLES);
+    }
+    void main() {
+      fragColor = vec4(integrateBRDF(v_uv.x, v_uv.y), 0.0, 1.0);
+    }
+  )";
+  const unsigned int v = compileShader(GL_VERTEX_SHADER, vs);
+  const unsigned int f = compileShader(GL_FRAGMENT_SHADER, fs);
+  const unsigned int program = glCreateProgram();
+  glAttachShader(program, v);
+  glAttachShader(program, f);
+  glLinkProgram(program);
+  glDeleteShader(v);
+  glDeleteShader(f);
+  int ok = 0;
+  glGetProgramiv(program, GL_LINK_STATUS, &ok);
+  if (!ok) {
+    char log[1024];
+    glGetProgramInfoLog(program, sizeof(log), nullptr, log);
+    throw std::runtime_error(log);
+  }
+  return program;
+}
+
 }  // namespace
 
 OpenGLBackend::OpenGLBackend() {
@@ -500,6 +590,7 @@ OpenGLBackend::OpenGLBackend() {
 
   m_irradianceShader = createIrradianceProgram();
   m_prefilterShader = createPrefilterProgram();
+  m_brdfShader = createBrdfProgram();
 }
 
 OpenGLBackend::~OpenGLBackend() {
@@ -509,6 +600,7 @@ OpenGLBackend::~OpenGLBackend() {
   if (m_skyShader) glDeleteProgram(m_skyShader);
   if (m_irradianceShader) glDeleteProgram(m_irradianceShader);
   if (m_prefilterShader) glDeleteProgram(m_prefilterShader);
+  if (m_brdfShader) glDeleteProgram(m_brdfShader);
   if (m_quadVbo) glDeleteBuffers(1, &m_quadVbo);
   if (m_quadVao) glDeleteVertexArrays(1, &m_quadVao);
 }
@@ -612,11 +704,19 @@ void OpenGLBackend::lightingPass(uint32_t gAlbedo, uint32_t gNormal,
   glBindTextureUnit(2, gWorldPos);
   glBindTextureUnit(3, shadowMap);
   glBindTextureUnit(4, m_envMap);
+  glBindTextureUnit(5, m_irradianceMap);
+  glBindTextureUnit(6, m_prefilterMap);
+  glBindTextureUnit(7, m_brdfLUT);
   glUniform1i(glGetUniformLocation(m_lightingShader, "u_gAlbedo"), 0);
   glUniform1i(glGetUniformLocation(m_lightingShader, "u_gNormal"), 1);
   glUniform1i(glGetUniformLocation(m_lightingShader, "u_gWorldPos"), 2);
   glUniform1i(glGetUniformLocation(m_lightingShader, "u_shadowMap"), 3);
   glUniform1i(glGetUniformLocation(m_lightingShader, "u_envMap"), 4);
+  glUniform1i(glGetUniformLocation(m_lightingShader, "u_irradiance"), 5);
+  glUniform1i(glGetUniformLocation(m_lightingShader, "u_prefilter"), 6);
+  glUniform1i(glGetUniformLocation(m_lightingShader, "u_brdfLUT"), 7);
+  glUniform1i(glGetUniformLocation(m_lightingShader, "u_prefilterMips"),
+              m_prefilterMips);
   glBindVertexArray(m_quadVao);
   glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
   glBindVertexArray(0);
@@ -733,6 +833,22 @@ void OpenGLBackend::blit(uint32_t sourceColorTexture,
   glBindVertexArray(m_quadVao);
   glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
   glBindVertexArray(0);
+}
+
+void OpenGLBackend::integrateBRDF() {
+  glDisable(GL_DEPTH_TEST);
+  glUseProgram(m_brdfShader);
+  glBindVertexArray(m_quadVao);
+  glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+  glBindVertexArray(0);
+}
+
+void OpenGLBackend::setIBL(uint32_t irradiance, uint32_t prefilter,
+                           uint32_t brdfLUT, int prefilterMips) {
+  m_irradianceMap = irradiance;
+  m_prefilterMap = prefilter;
+  m_brdfLUT = brdfLUT;
+  m_prefilterMips = prefilterMips;
 }
 
 void OpenGLBackend::readPixels(int x, int y, int width, int height, void* out) {
