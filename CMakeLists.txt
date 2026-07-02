@@ -123,6 +123,7 @@ add_executable(bot_arena_tests
     tests/test_combat.cpp
     tests/test_particle.cpp
     tests/test_particle_system.cpp
+    tests/test_mesh_bounds.cpp
 
     engine/core/Arena.cpp
     engine/particles/ParticleSystem.cpp
