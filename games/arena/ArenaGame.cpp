@@ -4,6 +4,9 @@
 #include <random>
 #include <vector>
 
+#include "engine/core/FixedTimestep.hpp"
+#include "engine/core/Input.hpp"
+#include "engine/physics/Collision.hpp"
 #include "engine/renderer/MeshRenderer.hpp"
 #include "engine/renderer/PointLight.hpp"
 #include "engine/renderer/ResourceRegistry.hpp"
@@ -15,6 +18,11 @@ void ArenaGame::onAttach() {
   m_camera.setTarget({0.0f, 0.5f, 0.0f});
   m_camera.setOrbit(45.0f, 55.0f, 18.0f);
   spawnEntities();
+  // Deterministic warm-up so a single-frame (headless screenshot) capture shows
+  // a genuinely simulated state — bots advanced along their velocities and some
+  // already bounced off the walls. No input during warm-up, so the player
+  // stays.
+  for (int i = 0; i < 120; ++i) stepSim(1.0f / 60.0f);
 }
 
 void ArenaGame::spawnEntities() {
@@ -34,6 +42,43 @@ void ArenaGame::spawnEntities() {
                                 : glm::vec3(2.0f, 0.0f, 0.0f);
     m_registry.emplace<Velocity>(b, v);
     m_registry.emplace<Bot>(b);
+  }
+}
+
+void ArenaGame::onUpdate(float dt) {
+  m_accumulator += dt;
+  const float step = 1.0f / 60.0f;
+  const engine::FixedStep fs = engine::fixedTimestep(m_accumulator, step, 5);
+  m_accumulator = fs.remainder;
+  for (int i = 0; i < fs.steps; ++i) stepSim(step);
+}
+
+void ArenaGame::stepSim(float dt) {
+  // Input -> player velocity (XZ plane).
+  glm::vec3 dir(0.0f);
+  if (engine::Input::isKeyDown(engine::Key::W)) dir.z -= 1.0f;
+  if (engine::Input::isKeyDown(engine::Key::S)) dir.z += 1.0f;
+  if (engine::Input::isKeyDown(engine::Key::A)) dir.x -= 1.0f;
+  if (engine::Input::isKeyDown(engine::Key::D)) dir.x += 1.0f;
+  auto players = m_registry.view<Velocity, Player>();
+  for (const entt::entity e : players) {
+    players.get<Velocity>(e).value = glm::length(dir) > 0.001f
+                                         ? glm::normalize(dir) * 3.0f
+                                         : glm::vec3(0.0f);
+  }
+
+  // Integrate + wall-bounce every moving agent.
+  const glm::vec3 boundsMin(-4.75f, -1.0f, -4.75f);
+  const glm::vec3 boundsMax(4.75f, 10.0f, 4.75f);
+  auto view = m_registry.view<Transform, Velocity>();
+  for (const entt::entity e : view) {
+    Transform& tr = view.get<Transform>(e);
+    Velocity& v = view.get<Velocity>(e);
+    tr.position += v.value * dt;
+    const engine::WallBounce wb = engine::resolveWallBounce(
+        tr.position, v.value, boundsMin, boundsMax, tr.scale);
+    tr.position = wb.position;
+    v.value = wb.velocity;
   }
 }
 
