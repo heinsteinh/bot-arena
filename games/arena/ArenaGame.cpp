@@ -31,6 +31,7 @@ void ArenaGame::spawnEntities() {
   m_registry.emplace<Transform>(player, glm::vec3(0.0f, 0.3f, 0.0f), 0.4f);
   m_registry.emplace<Velocity>(player, glm::vec3(0.0f));
   m_registry.emplace<Player>(player);
+  m_registry.emplace<Health>(player, kPlayerMaxHealth, kPlayerMaxHealth);
 
   std::uniform_real_distribution<float> posD(-4.0f, 4.0f);
   std::uniform_real_distribution<float> velD(-1.0f, 1.0f);
@@ -43,6 +44,7 @@ void ArenaGame::spawnEntities() {
                                 : glm::vec3(2.0f, 0.0f, 0.0f);
     m_registry.emplace<Velocity>(b, v);
     m_registry.emplace<Bot>(b);
+    m_registry.emplace<Health>(b, kBotMaxHealth, kBotMaxHealth);
   }
 }
 

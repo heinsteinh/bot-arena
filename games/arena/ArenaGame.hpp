@@ -7,6 +7,7 @@
 #include "engine/core/Layer.hpp"
 #include "engine/renderer/OrbitCameraController.hpp"
 #include "engine/renderer/RenderCommand.hpp"
+#include "engine/renderer/text/Font.hpp"
 
 namespace arena {
 
@@ -32,6 +33,18 @@ class ArenaGame final : public engine::Layer {
 
   static constexpr float kBotMaxSpeed = 2.5f;
   static constexpr float kBotMaxForce = 8.0f;
+
+  static constexpr float kPlayerMaxHealth = 100.0f;
+  static constexpr float kBotMaxHealth = 30.0f;
+  static constexpr float kPlayerDps = 40.0f;
+  static constexpr float kBotDps = 8.0f;
+  static constexpr float kBotRegen = 6.0f;
+  static constexpr float kFleeFraction = 0.35f;
+  static constexpr float kArenaEdge = 4.5f;
+
+  int m_kills = 0;
+  int m_deaths = 0;
+  engine::Ref<engine::Font> m_font;
 };
 
 }  // namespace arena

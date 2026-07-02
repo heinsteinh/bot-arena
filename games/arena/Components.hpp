@@ -14,6 +14,11 @@ struct Velocity {
   glm::vec3 value{0.0f};
 };
 
+struct Health {
+  float current = 0.0f;
+  float max = 0.0f;
+};
+
 struct Player {};  // tag
 struct Bot {};     // tag
 
