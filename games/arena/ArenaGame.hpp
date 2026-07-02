@@ -29,6 +29,9 @@ class ArenaGame final : public engine::Layer {
   engine::MaterialHandle m_groundMat = 0;
   engine::MaterialHandle m_playerMat = 0;
   engine::MaterialHandle m_botMats[4] = {0, 0, 0, 0};
+
+  static constexpr float kBotMaxSpeed = 2.5f;
+  static constexpr float kBotMaxForce = 8.0f;
 };
 
 }  // namespace arena
