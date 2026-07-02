@@ -15,6 +15,7 @@
 #include "engine/renderer/CommandBufferPool.hpp"
 #include "engine/renderer/Framebuffer.hpp"
 #include "engine/renderer/LightUniforms.hpp"
+#include "engine/renderer/ParticleInstance.hpp"
 #include "engine/renderer/PointLight.hpp"
 #include "engine/renderer/RenderBackend.hpp"
 #include "engine/renderer/RenderPass.hpp"
@@ -59,6 +60,10 @@ class Renderer {
   void drawText(const Font& font, std::string_view text, float x, float y,
                 float scale, const glm::vec4& color);
 
+  // Enqueue additive particle billboards drawn into the HDR scene (before
+  // bloom) in endFrame.
+  void submitParticles(const std::vector<ParticleInstance>& instances);
+
   struct RenderStats {
     size_t drawCount = 0;
     int pointLights = 0;
@@ -84,6 +89,7 @@ class Renderer {
   std::vector<Scope<WorkerBuffer>> m_lanes;
   std::vector<RenderEntry> m_merged;
   std::vector<TextBatch> m_textBatches;
+  std::vector<ParticleInstance> m_particleInstances;
   ResourceRegistry m_registry;
   Scope<RenderBackend> m_backend;
   CameraUniforms m_camera;

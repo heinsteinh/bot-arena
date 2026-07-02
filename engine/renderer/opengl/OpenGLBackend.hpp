@@ -46,6 +46,7 @@ class OpenGLBackend final : public RenderBackend {
   void readPixels(int x, int y, int width, int height, void* out) override;
   void drawText(uint32_t atlasTextureId, const std::vector<TextQuad>& quads,
                 int screenW, int screenH, const glm::vec4& color) override;
+  void drawParticles(const ParticleInstance* data, int count) override;
 
  private:
   Ref<UniformBuffer> m_cameraUBO;
@@ -57,6 +58,10 @@ class OpenGLBackend final : public RenderBackend {
   unsigned int m_textProgram = 0;
   unsigned int m_textVao = 0;
   unsigned int m_textVbo = 0;
+
+  unsigned int m_particleProgram = 0;
+  unsigned int m_particleVao = 0;
+  unsigned int m_particleVbo = 0;
 
   unsigned int m_shadowShader = 0;
   Ref<UniformBuffer> m_lightUBO;
