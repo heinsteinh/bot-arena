@@ -25,6 +25,10 @@ class OpenGLBackend final : public RenderBackend {
   void renderEnvironment(uint32_t cubemap, int size,
                          const glm::vec3& sunDir) override;
   void setEnvironment(uint32_t envCubemap) override;
+  void convolveIrradiance(uint32_t env, uint32_t irradianceCube,
+                          int size) override;
+  void prefilterEnvironment(uint32_t env, uint32_t prefilterCube, int baseSize,
+                            int mipCount) override;
   void executeShadow(const std::vector<RenderEntry>& entries,
                      const glm::mat4& lightViewProj, Arena& scratch,
                      const ResourceRegistry& registry) override;
@@ -48,6 +52,9 @@ class OpenGLBackend final : public RenderBackend {
 
   unsigned int m_skyShader = 0;
   unsigned int m_envMap = 0;
+
+  unsigned int m_irradianceShader = 0;
+  unsigned int m_prefilterShader = 0;
 };
 
 }  // namespace engine
