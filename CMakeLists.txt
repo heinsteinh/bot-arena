@@ -43,6 +43,7 @@ add_library(bot_arena_engine STATIC
 
     engine/renderer/text/FontManager.cpp
     engine/renderer/text/BitmapFreeTypeSource.cpp
+    engine/renderer/text/TextRenderer.cpp
 
     engine/particles/ParticleSystem.cpp
 
@@ -148,6 +149,7 @@ add_executable(bot_arena_tests
     tests/test_font_desc.cpp
     tests/test_text_style.cpp
     tests/test_font_manager.cpp
+    tests/test_text_batch.cpp
 
     engine/core/Arena.cpp
     engine/particles/ParticleSystem.cpp
@@ -157,6 +159,7 @@ add_executable(bot_arena_tests
     engine/renderer/MeshRenderer.cpp
     engine/renderer/CommandBufferPool.cpp
     engine/renderer/text/FontManager.cpp
+    engine/renderer/text/TextRenderer.cpp
 )
 
 target_include_directories(bot_arena_tests
