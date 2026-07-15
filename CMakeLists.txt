@@ -116,6 +116,12 @@ add_executable(shooter_game
 )
 target_link_libraries(shooter_game PRIVATE bot_arena_engine)
 
+add_executable(text_demo_game
+    games/text_demo/main.cpp
+    games/text_demo/TextDemoGame.cpp
+)
+target_link_libraries(text_demo_game PRIVATE bot_arena_engine)
+
 enable_testing()
 
 add_executable(bot_arena_tests
