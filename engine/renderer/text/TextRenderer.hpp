@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <string_view>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 #include "engine/renderer/text/FontAsset.hpp"
@@ -18,9 +19,13 @@ namespace engine {
 // slice implements ScreenSpace only. Batches merge by (backend, atlas).
 class TextRenderer {
  public:
+  static constexpr uint32_t kMaxStylesPerBatch = 64;
+
   struct Batch {
     uint32_t atlas = 0;
     FontBackend backend = FontBackend::Bitmap;
+    float pxRange = 0.0f;
+    std::vector<GpuStyle> styles;
     std::vector<TextVertex> verts;
   };
 
@@ -32,10 +37,16 @@ class TextRenderer {
   void clear();
 
  private:
-  Batch& batchFor(FontBackend backend, uint32_t atlas);
+  // Returns the batch index for (backend, atlas) that can host `style`, plus
+  // the style's index within that batch's table. Splits to a new batch past the
+  // cap.
+  std::pair<std::size_t, uint32_t> acquire(FontBackend backend, uint32_t atlas,
+                                           float pxRange,
+                                           const GpuStyle& style);
 
   std::vector<Batch> m_batches;
-  std::unordered_map<uint64_t, size_t> m_index;  // key -> batch index
+  std::unordered_map<uint64_t, std::vector<std::size_t>>
+      m_index;  // key -> batches
 };
 
 }  // namespace engine

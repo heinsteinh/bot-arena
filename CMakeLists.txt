@@ -43,6 +43,7 @@ add_library(bot_arena_engine STATIC
 
     engine/renderer/text/FontManager.cpp
     engine/renderer/text/BitmapFreeTypeSource.cpp
+    engine/renderer/text/SdfFreeTypeSource.cpp
     engine/renderer/text/TextRenderer.cpp
 
     engine/particles/ParticleSystem.cpp

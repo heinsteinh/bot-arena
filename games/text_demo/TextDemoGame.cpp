@@ -1,6 +1,5 @@
 #include "games/text_demo/TextDemoGame.hpp"
 
-#include <cmath>
 #include <string>
 #include <string_view>
 
@@ -26,39 +25,14 @@ engine::TextStyle fill(const glm::vec4& c) {
   return s;
 }
 
-engine::FontHandle loadFont(engine::Renderer& r, const char* file,
-                            uint32_t px) {
+engine::FontHandle loadFont(
+    engine::Renderer& r, const char* file, uint32_t px,
+    engine::FontBackend backend = engine::FontBackend::Bitmap) {
   engine::FontDesc desc;
   desc.family = std::string(BOTARENA_ASSET_DIR) + "/fonts/" + file;
   desc.pixelSize = px;
-  desc.backend = engine::FontBackend::Bitmap;
+  desc.backend = backend;
   return r.fonts().load(desc);
-}
-
-// Drop shadow: draw the string once offset in a dark colour, then the fill on
-// top. Two draws, no engine effect support needed.
-void drawShadow(engine::Renderer& r, const engine::FontHandle& f,
-                std::string_view text, float x, float y, float scale,
-                const glm::vec4& fillColor, const glm::vec4& shadowColor,
-                float dx, float dy) {
-  r.drawText(f, text, at(x + dx, y + dy, scale), fill(shadowColor));
-  r.drawText(f, text, at(x, y, scale), fill(fillColor));
-}
-
-// Outline / stroke: draw the string in the outline colour at eight offsets
-// around the pen, then the fill on top. A thick, dark outline reads as a
-// "cartoon" look; a bright outline reads as a coloured stroke.
-void drawOutline(engine::Renderer& r, const engine::FontHandle& f,
-                 std::string_view text, float x, float y, float scale,
-                 const glm::vec4& fillColor, const glm::vec4& lineColor,
-                 float w) {
-  static const float ox[8] = {-1, 1, 0, 0, -1, 1, -1, 1};
-  static const float oy[8] = {0, 0, -1, 1, -1, -1, 1, 1};
-  for (int i = 0; i < 8; ++i) {
-    r.drawText(f, text, at(x + ox[i] * w, y + oy[i] * w, scale),
-               fill(lineColor));
-  }
-  r.drawText(f, text, at(x, y, scale), fill(fillColor));
 }
 
 }  // namespace
@@ -76,6 +50,9 @@ void TextDemoGame::loadFonts(engine::Renderer& renderer) {
     m_display = loadFont(renderer, "BAUHS93.TTF", 44);
     if (!m_display) m_display = m_sans;
   }
+  if (!m_sdf) {
+    m_sdf = loadFont(renderer, "DejaVuSans.ttf", 48, engine::FontBackend::SDF);
+  }
 }
 
 void TextDemoGame::onRender(engine::Renderer& renderer, int width, int height) {
@@ -83,63 +60,83 @@ void TextDemoGame::onRender(engine::Renderer& renderer, int width, int height) {
   if (!m_sans) return;
 
   const glm::vec4 white{1.0f, 1.0f, 1.0f, 1.0f};
-  const glm::vec4 ink{0.05f, 0.05f, 0.08f, 1.0f};
   const float h = static_cast<float>(height);
 
+  const glm::vec4 ink{0.05f, 0.05f, 0.08f, 1.0f};
+
+  // --- Effect column (left): real single-pass SDF effects on m_sdf ---
+  if (m_sdf) {
+    // Outline (white fill, dark ring).
+    engine::TextStyle outline;
+    outline.fillColor = white;
+    outline.outlineColor = ink;
+    outline.outlineWidthPx = 2.5f;
+    renderer.drawText(m_sdf, "Outline", at(40.0f, 300.0f, 0.8f), outline);
+
+    // Cartoon (bright fill, thick dark outline).
+    engine::TextStyle cartoon;
+    cartoon.fillColor = {1.0f, 0.82f, 0.15f, 1.0f};
+    cartoon.outlineColor = {0.10f, 0.05f, 0.0f, 1.0f};
+    cartoon.outlineWidthPx = 4.0f;
+    renderer.drawText(m_sdf, "CARTOON", at(40.0f, 350.0f, 0.9f), cartoon);
+
+    // Colored stroke (dark fill, bright ring).
+    engine::TextStyle stroke;
+    stroke.fillColor = ink;
+    stroke.outlineColor = {1.0f, 0.25f, 0.55f, 1.0f};
+    stroke.outlineWidthPx = 3.0f;
+    renderer.drawText(m_sdf, "Colored stroke", at(40.0f, 405.0f, 0.8f), stroke);
+
+    // Glow (white fill, cyan outer glow).
+    engine::TextStyle glow;
+    glow.fillColor = white;
+    glow.glowColor = {0.3f, 0.85f, 1.0f, 1.0f};
+    glow.glowSizePx = 9.0f;
+    renderer.drawText(m_sdf, "Glow", at(40.0f, 460.0f, 0.9f), glow);
+
+    // Drop shadow (white fill, soft offset shadow).
+    engine::TextStyle shadow;
+    shadow.fillColor = white;
+    shadow.shadowColor = {0.0f, 0.0f, 0.0f, 0.7f};
+    shadow.shadowOffsetPx = {3.0f, 3.0f};
+    shadow.shadowSoftnessPx = 2.0f;
+    renderer.drawText(m_sdf, "Drop shadow", at(40.0f, 515.0f, 0.8f), shadow);
+  }
+
   // Header (kept clear of the top-left debug overlay).
-  drawShadow(renderer, m_sans, "Text Effects Showcase", 430.0f, 60.0f, 1.4f,
-             white, {0.0f, 0.0f, 0.0f, 0.6f}, 2.0f, 2.0f);
-  renderer.drawText(m_sans, "bitmap backend | 3 fonts | layered effects",
+  renderer.drawText(m_sans, "Text Effects Showcase", at(430.0f, 60.0f, 1.4f),
+                    fill(white));
+  renderer.drawText(m_sans, "single-pass SDF effects + multiple fonts",
                     at(430.0f, 92.0f, 0.7f), fill({0.75f, 0.8f, 0.9f, 1.0f}));
-
-  // --- Effect column (left, below the debug overlay) ---
-  drawShadow(renderer, m_sans, "Drop shadow", 40.0f, 300.0f, 1.2f, white,
-             {0.0f, 0.0f, 0.0f, 0.7f}, 3.0f, 3.0f);
-
-  drawOutline(renderer, m_sans, "Outline", 40.0f, 350.0f, 1.2f, white, ink,
-              2.0f);
-
-  // Cartoon: thick dark outline + bright saturated fill.
-  drawOutline(renderer, m_sans, "CARTOON", 40.0f, 405.0f, 1.3f,
-              {1.0f, 0.82f, 0.15f, 1.0f}, {0.10f, 0.05f, 0.0f, 1.0f}, 3.0f);
-
-  // Coloured stroke: bright outline, dark fill.
-  drawOutline(renderer, m_sans, "Colored stroke", 40.0f, 460.0f, 1.2f, ink,
-              {1.0f, 0.25f, 0.55f, 1.0f}, 2.0f);
-
-  // Pulsing glow-ish: outline whose alpha breathes.
-  const float pulse = 0.35f + 0.35f * std::sin(m_time * 3.0f);
-  drawOutline(renderer, m_sans, "Pulsing glow", 40.0f, 515.0f, 1.2f, white,
-              {0.3f, 0.85f, 1.0f, pulse}, 3.0f);
 
   // --- Font column (right) ---
   renderer.drawText(m_sans, "DejaVu Sans  AaBbCc 0123",
                     at(430.0f, 300.0f, 1.0f), fill(white));
 
   if (m_script) {
-    drawShadow(renderer, m_script, "Lobster Script", 430.0f, 360.0f, 1.0f,
-               {1.0f, 0.9f, 0.6f, 1.0f}, {0.0f, 0.0f, 0.0f, 0.6f}, 2.0f, 2.0f);
+    renderer.drawText(m_script, "Lobster Script", at(430.0f, 360.0f, 1.0f),
+                      fill({1.0f, 0.9f, 0.6f, 1.0f}));
   }
   if (m_display) {
-    drawOutline(renderer, m_display, "BAUHAUS 93", 430.0f, 425.0f, 1.0f, white,
-                ink, 2.0f);
+    renderer.drawText(m_display, "BAUHAUS 93", at(430.0f, 425.0f, 1.0f),
+                      fill(white));
   }
 
-  // Effects applied to the decorative faces.
-  if (m_script) {
-    drawOutline(renderer, m_script, "Sweet!", 430.0f, 490.0f, 1.2f,
-                {1.0f, 0.45f, 0.7f, 1.0f}, {0.15f, 0.0f, 0.08f, 1.0f}, 3.0f);
-  }
-  if (m_display) {
-    drawShadow(renderer, m_display, "HEAVY", 640.0f, 490.0f, 1.2f,
-               {0.4f, 0.9f, 1.0f, 1.0f}, {0.0f, 0.0f, 0.0f, 0.7f}, 4.0f, 4.0f);
+  // SDF vs bitmap at large scale: same target height (~96 px), bitmap upscaled
+  // 3x (blurry) vs SDF baked-48 at 2x (crisp).
+  const glm::vec4 label{0.15f, 0.2f, 0.3f, 1.0f};
+  renderer.drawText(m_sans, "bitmap 3x", at(850.0f, 285.0f, 0.6f), fill(label));
+  renderer.drawText(m_sans, "Aa 12", at(850.0f, 345.0f, 3.0f), fill(white));
+  renderer.drawText(m_sans, "SDF 2x", at(850.0f, 430.0f, 0.6f), fill(label));
+  if (m_sdf) {
+    renderer.drawText(m_sdf, "Aa 12", at(850.0f, 490.0f, 2.0f), fill(white));
   }
 
   // Footer: honest about the technique.
   renderer.drawText(
       m_sans,
-      "Effects layered on the bitmap backend; crisp single-pass SDF/MSDF "
-      "outline & glow arrive in Slices 2-3.",
+      "Real single-pass SDF effects: outline, cartoon, stroke, glow, shadow "
+      "(left). SDF stays crisp at any scale (right).",
       at(40.0f, h - 30.0f, 0.6f), fill({0.6f, 0.6f, 0.65f, 1.0f}));
 }
 

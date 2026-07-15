@@ -9,16 +9,28 @@ void TextRenderer::clear() {
   m_index.clear();
 }
 
-TextRenderer::Batch& TextRenderer::batchFor(FontBackend backend,
-                                            uint32_t atlas) {
+std::pair<std::size_t, uint32_t> TextRenderer::acquire(FontBackend backend,
+                                                       uint32_t atlas,
+                                                       float pxRange,
+                                                       const GpuStyle& style) {
   const uint64_t key =
       (static_cast<uint64_t>(backend) << 32) | static_cast<uint64_t>(atlas);
-  if (auto it = m_index.find(key); it != m_index.end()) {
-    return m_batches[it->second];
+  std::vector<std::size_t>& batches = m_index[key];
+  for (std::size_t bi : batches) {
+    Batch& b = m_batches[bi];
+    for (uint32_t si = 0; si < b.styles.size(); ++si) {
+      if (b.styles[si] == style) return {bi, si};
+    }
+    if (b.styles.size() < kMaxStylesPerBatch) {
+      b.styles.push_back(style);
+      return {bi, static_cast<uint32_t>(b.styles.size() - 1)};
+    }
   }
-  m_index.emplace(key, m_batches.size());
-  m_batches.push_back(Batch{atlas, backend, {}});
-  return m_batches.back();
+  const std::size_t bi = m_batches.size();
+  m_batches.push_back(Batch{atlas, backend, pxRange, {}, {}});
+  m_batches[bi].styles.push_back(style);
+  batches.push_back(bi);
+  return {bi, 0};
 }
 
 void TextRenderer::submit(const FontAsset& font, std::string_view text,
@@ -32,13 +44,14 @@ void TextRenderer::submit(const FontAsset& font, std::string_view text,
 
   const uint32_t fill = packColor(style.fillColor);
   const uint32_t outline = packColor(style.outlineColor);
-  const uint32_t styleIdx = style.styleIndex;
+  const auto [batchIdx, styleIdx] = acquire(
+      font.backend, font.atlasRendererID(), font.pxRange, toGpuStyle(style));
   const float sw = static_cast<float>(screenW);
   const float sh = static_cast<float>(screenH);
   const auto ndcX = [&](float px) { return px / sw * 2.0f - 1.0f; };
   const auto ndcY = [&](float py) { return 1.0f - py / sh * 2.0f; };
 
-  Batch& batch = batchFor(font.backend, font.atlasRendererID());
+  Batch& batch = m_batches[batchIdx];
   batch.verts.reserve(batch.verts.size() + quads.size() * 6);
 
   for (const TextQuad& q : quads) {

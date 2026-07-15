@@ -19,6 +19,7 @@
 #include "engine/renderer/Shader.hpp"
 #include "engine/renderer/UniformBuffer.hpp"
 #include "engine/renderer/VertexArray.hpp"
+#include "engine/renderer/text/TextStyle.hpp"
 #include "engine/renderer/text/TextVertex.hpp"
 
 namespace engine {
@@ -899,6 +900,8 @@ OpenGLBackend::OpenGLBackend() {
 
   m_lightingShader = createLightingProgram();
   m_pointLightUBO = UniformBuffer::Create(sizeof(GpuPointLights), 2);
+  m_textStyleUBO = UniformBuffer::Create(
+      64 * static_cast<uint32_t>(sizeof(GpuStyle)), /*binding=*/3);
 
   m_skyShader = createSkyProgram();
   glEnable(GL_TEXTURE_CUBE_MAP_SEAMLESS);
@@ -934,9 +937,11 @@ OpenGLBackend::OpenGLBackend() {
       layout(location = 4) in uint aStyle;
       out vec2 vUV;
       out vec4 vFill;
+      flat out uint vStyleIndex;
       void main() {
         vUV = aUV;
         vFill = unpackUnorm4x8(aFill);
+        vStyleIndex = aStyle;
         gl_Position = vec4(aPos, 1.0);
       }
     )";
@@ -959,6 +964,83 @@ OpenGLBackend::OpenGLBackend() {
     glLinkProgram(m_textProgram);
     glDeleteShader(v);
     glDeleteShader(f);
+
+    // SDF text: resolve coverage from the distance field; crisp at any scale.
+    constexpr const char* sdfFs = R"(
+      #version 460 core
+      in vec2 vUV;
+      flat in uint vStyleIndex;
+      out vec4 FragColor;
+      uniform sampler2D uAtlas;
+      uniform float uPxRange;
+
+      struct GpuStyle {
+        vec4 fillColor;
+        vec4 outlineColor;
+        vec4 glowColor;
+        vec4 shadowColor;
+        vec4 params0;  // outlineWidthPx, glowSizePx, shadowOffX, shadowOffY
+        vec4 params1;  // shadowSoftnessPx, _, _, _
+      };
+      layout(std140, binding = 3) uniform StyleTable {
+        GpuStyle styles[64];
+      };
+
+      float screenPxRange() {
+        vec2 unitRange = vec2(uPxRange) / vec2(textureSize(uAtlas, 0));
+        vec2 screenTexSize = vec2(1.0) / fwidth(vUV);
+        return max(0.5 * dot(unitRange, screenTexSize), 1.0);
+      }
+      // Composite src OVER dst, both straight alpha.
+      vec4 over(vec4 dst, vec4 src) {
+        float a = src.a + dst.a * (1.0 - src.a);
+        vec3 c = (src.rgb * src.a + dst.rgb * dst.a * (1.0 - src.a)) /
+                 max(a, 1e-4);
+        return vec4(c, a);
+      }
+      void main() {
+        GpuStyle s = styles[vStyleIndex];
+        float outlineW = s.params0.x;
+        float glowSz = s.params0.y;
+        vec2 shadowOff = s.params0.zw;
+        float shadowSoft = s.params1.x;
+
+        float spr = screenPxRange();
+        float sd = spr * (texture(uAtlas, vUV).r - 0.5);   // signed px distance
+
+        float fill = clamp(sd + 0.5, 0.0, 1.0);
+        float body = clamp(sd + outlineW + 0.5, 0.0, 1.0); // fill + outline
+        float outline = max(body - fill, 0.0);
+
+        float glow = 0.0;
+        if (glowSz > 0.0) {
+          glow = clamp((sd + outlineW + glowSz) / glowSz, 0.0, 1.0) *
+                 (1.0 - body);
+        }
+        float shadow = 0.0;
+        if (s.shadowColor.a > 0.0) {
+          vec2 sUV = vUV - shadowOff * fwidth(vUV);
+          float sdS = spr * (texture(uAtlas, sUV).r - 0.5);
+          float soft = max(shadowSoft, 1.0);
+          shadow = smoothstep(-soft, soft, sdS) * (1.0 - body);
+        }
+
+        vec4 c = vec4(0.0);
+        c = over(c, vec4(s.shadowColor.rgb, s.shadowColor.a * shadow));
+        c = over(c, vec4(s.glowColor.rgb, s.glowColor.a * glow));
+        c = over(c, vec4(s.outlineColor.rgb, s.outlineColor.a * outline));
+        c = over(c, vec4(s.fillColor.rgb, s.fillColor.a * fill));
+        FragColor = c;
+      }
+    )";
+    const unsigned int sv = compileShader(GL_VERTEX_SHADER, vs);
+    const unsigned int sf = compileShader(GL_FRAGMENT_SHADER, sdfFs);
+    m_sdfTextProgram = glCreateProgram();
+    glAttachShader(m_sdfTextProgram, sv);
+    glAttachShader(m_sdfTextProgram, sf);
+    glLinkProgram(m_sdfTextProgram);
+    glDeleteShader(sv);
+    glDeleteShader(sf);
 
     glCreateVertexArrays(1, &m_textVao);
     glCreateBuffers(1, &m_textVbo);
@@ -1398,17 +1480,29 @@ void OpenGLBackend::readPixels(int x, int y, int width, int height, void* out) {
   glReadPixels(x, y, width, height, GL_RGB, GL_UNSIGNED_BYTE, out);
 }
 
-void OpenGLBackend::drawTextBatch(uint32_t atlasTextureId,
-                                  const std::vector<TextVertex>& verts) {
+void OpenGLBackend::drawTextBatch(FontBackend backend, uint32_t atlasTextureId,
+                                  const std::vector<TextVertex>& verts,
+                                  float pxRange,
+                                  const std::vector<GpuStyle>& styles) {
   if (verts.empty()) return;
 
   glNamedBufferData(m_textVbo,
                     static_cast<GLsizeiptr>(verts.size() * sizeof(TextVertex)),
                     verts.data(), GL_DYNAMIC_DRAW);
 
-  glUseProgram(m_textProgram);
+  const unsigned int program =
+      backend == FontBackend::SDF ? m_sdfTextProgram : m_textProgram;
+  glUseProgram(program);
   glBindTextureUnit(0, atlasTextureId);
-  glUniform1i(glGetUniformLocation(m_textProgram, "uAtlas"), 0);
+  glUniform1i(glGetUniformLocation(program, "uAtlas"), 0);
+  if (backend == FontBackend::SDF) {
+    glUniform1f(glGetUniformLocation(program, "uPxRange"), pxRange);
+    if (!styles.empty()) {
+      m_textStyleUBO->setData(
+          styles.data(),
+          static_cast<uint32_t>(styles.size() * sizeof(GpuStyle)));
+    }
+  }
 
   glEnable(GL_BLEND);
   glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
