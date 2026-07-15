@@ -11,7 +11,9 @@
 #include "engine/core/AssetPath.hpp"
 #include "engine/renderer/Buffer.hpp"
 #include "engine/renderer/Shader.hpp"
+#include "engine/renderer/Texture2D.hpp"
 #include "engine/renderer/VertexArray.hpp"
+#include "engine/renderer/text/BitmapFreeTypeSource.hpp"
 
 namespace engine {
 
@@ -123,6 +125,16 @@ void Renderer::initBuiltins() {
   m_cubeMesh = m_registry.registerMesh(va);
   m_meshShader =
       m_registry.registerShader(Shader::Create(assetPath("shaders/mesh.glsl")));
+
+  m_fonts = CreateScope<FontManager>([](const BakedFont& baked) {
+    Ref<Texture2D> tex = Texture2D::Create(
+        static_cast<uint32_t>(baked.atlasWidth),
+        static_cast<uint32_t>(baked.atlasHeight), TextureFormat::R8);
+    tex->setData(baked.atlasPixels.data(),
+                 static_cast<uint32_t>(baked.atlasPixels.size()));
+    return CreateRef<GlyphAtlas>(tex, baked.atlasWidth, baked.atlasHeight);
+  });
+  m_fonts->registerSource(CreateScope<BitmapFreeTypeSource>());
 }
 
 void Renderer::beginFrame(int width, int height) {
@@ -144,7 +156,7 @@ void Renderer::beginFrame(int width, int height) {
   const uint32_t halfH = static_cast<uint32_t>(height) / 2;
   m_bloomFBO[0]->resize(halfW, halfH);
   m_bloomFBO[1]->resize(halfW, halfH);
-  m_textBatches.clear();
+  m_textRenderer.clear();
   m_particleInstances.clear();
 }
 
@@ -153,11 +165,11 @@ void Renderer::submitParticles(const std::vector<ParticleInstance>& instances) {
                              instances.end());
 }
 
-void Renderer::drawText(const Font& font, std::string_view text, float x,
-                        float y, float scale, const glm::vec4& color) {
-  std::vector<TextQuad> quads = layoutText(font.glyphs(), text, x, y, scale);
-  if (quads.empty()) return;
-  m_textBatches.push_back({font.atlasRendererID(), std::move(quads), color});
+void Renderer::drawText(const FontHandle& font, std::string_view text,
+                        const TextPlacement& placement,
+                        const TextStyle& style) {
+  if (!font) return;
+  m_textRenderer.submit(*font, text, placement, style, m_width, m_height);
 }
 
 Renderer::RenderStats Renderer::stats() const {
@@ -251,8 +263,8 @@ void Renderer::endFrame() {
                             m_bloomFBO[src]->colorAttachment());
 
   // Text overlay -> default framebuffer (still bound), on top of the scene.
-  for (const TextBatch& b : m_textBatches) {
-    m_backend->drawText(b.atlas, b.quads, m_width, m_height, b.color);
+  for (const TextRenderer::Batch& b : m_textRenderer.batches()) {
+    m_backend->drawTextBatch(b.atlas, b.verts);
   }
 }
 
