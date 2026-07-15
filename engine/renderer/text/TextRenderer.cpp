@@ -9,15 +9,15 @@ void TextRenderer::clear() {
   m_index.clear();
 }
 
-TextRenderer::Batch& TextRenderer::batchFor(FontBackend backend,
-                                            uint32_t atlas) {
+TextRenderer::Batch& TextRenderer::batchFor(FontBackend backend, uint32_t atlas,
+                                            float pxRange) {
   const uint64_t key =
       (static_cast<uint64_t>(backend) << 32) | static_cast<uint64_t>(atlas);
   if (auto it = m_index.find(key); it != m_index.end()) {
     return m_batches[it->second];
   }
   m_index.emplace(key, m_batches.size());
-  m_batches.push_back(Batch{atlas, backend, {}});
+  m_batches.push_back(Batch{atlas, backend, pxRange, {}});
   return m_batches.back();
 }
 
@@ -38,7 +38,7 @@ void TextRenderer::submit(const FontAsset& font, std::string_view text,
   const auto ndcX = [&](float px) { return px / sw * 2.0f - 1.0f; };
   const auto ndcY = [&](float py) { return 1.0f - py / sh * 2.0f; };
 
-  Batch& batch = batchFor(font.backend, font.atlasRendererID());
+  Batch& batch = batchFor(font.backend, font.atlasRendererID(), font.pxRange);
   batch.verts.reserve(batch.verts.size() + quads.size() * 6);
 
   for (const TextQuad& q : quads) {

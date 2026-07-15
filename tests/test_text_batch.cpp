@@ -75,3 +75,15 @@ TEST_CASE("TextRenderer clear resets batches", "[textbatch]") {
   tr.clear();
   REQUIRE(tr.batches().empty());
 }
+
+TEST_CASE("TextRenderer records backend and pxRange on the batch",
+          "[textbatch]") {
+  TextRenderer tr;
+  FontAsset f = makeFont(9u);
+  f.backend = FontBackend::SDF;
+  f.pxRange = 8.0f;
+  tr.submit(f, "A", TextPlacement{}, TextStyle{}, 800, 600);
+  REQUIRE(tr.batches().size() == 1);
+  REQUIRE(tr.batches()[0].backend == FontBackend::SDF);
+  REQUIRE(tr.batches()[0].pxRange == 8.0f);
+}

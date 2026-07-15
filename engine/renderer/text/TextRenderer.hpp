@@ -21,6 +21,7 @@ class TextRenderer {
   struct Batch {
     uint32_t atlas = 0;
     FontBackend backend = FontBackend::Bitmap;
+    float pxRange = 0.0f;
     std::vector<TextVertex> verts;
   };
 
@@ -32,7 +33,7 @@ class TextRenderer {
   void clear();
 
  private:
-  Batch& batchFor(FontBackend backend, uint32_t atlas);
+  Batch& batchFor(FontBackend backend, uint32_t atlas, float pxRange);
 
   std::vector<Batch> m_batches;
   std::unordered_map<uint64_t, size_t> m_index;  // key -> batch index
