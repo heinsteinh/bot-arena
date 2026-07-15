@@ -71,7 +71,10 @@ bool SdfFreeTypeSource::bake(const FontDesc& desc, BakedFont& out) {
 
   out.atlasWidth = atlasW;
   out.atlasHeight = atlasH;
-  out.pxRange = static_cast<float>(spread);
+  // FreeType SDF maps [0,255] across [-spread, +spread], so the normalized
+  // [0,1] sample spans 2*spread texels of distance -> pxRange = 2*spread. This
+  // makes the shader's screen-px effect sizes (outlineWidthPx, etc.) literal.
+  out.pxRange = 2.0f * static_cast<float>(spread);
   out.atlasPixels.assign(static_cast<size_t>(atlasW) * atlasH, 0);
   for (const Pending& p : pend) {
     for (int row = 0; row < p.h; ++row) {
