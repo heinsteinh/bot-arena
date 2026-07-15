@@ -4,6 +4,7 @@
 #include <cstddef>
 #include <functional>
 #include <glm/glm.hpp>
+#include <span>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -26,6 +27,7 @@
 #include "engine/renderer/text/FontManager.hpp"
 #include "engine/renderer/text/TextPlacement.hpp"
 #include "engine/renderer/text/TextRenderer.hpp"
+#include "engine/renderer/text/TextSpan.hpp"
 #include "engine/renderer/text/TextStyle.hpp"
 
 namespace engine {
@@ -65,6 +67,11 @@ class Renderer {
   // coords (y-down); style's fillColor is honored by the bitmap backend.
   void drawText(const FontHandle& font, std::string_view text,
                 const TextPlacement& placement, const TextStyle& style);
+
+  // Draw a run of styled spans (rich text) in one call. `spans` is not
+  // retained.
+  void drawText(const FontHandle& font, std::span<const TextSpan> spans,
+                const TextPlacement& placement);
 
   // Enqueue additive particle billboards drawn into the HDR scene (before
   // bloom) in endFrame.

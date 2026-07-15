@@ -174,6 +174,12 @@ void Renderer::drawText(const FontHandle& font, std::string_view text,
   m_textRenderer.submit(*font, text, placement, style, m_width, m_height);
 }
 
+void Renderer::drawText(const FontHandle& font, std::span<const TextSpan> spans,
+                        const TextPlacement& placement) {
+  if (!font) return;
+  m_textRenderer.submit(*font, spans, placement, m_width, m_height);
+}
+
 Renderer::RenderStats Renderer::stats() const {
   RenderStats s;
   s.drawCount = m_merged.size();
