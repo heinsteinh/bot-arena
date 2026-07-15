@@ -1,3 +1,5 @@
+#include <algorithm>
+#include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 #include <span>
 #include <vector>
@@ -41,6 +43,13 @@ bool samePositions(const std::vector<TextVertex>& a,
     if (a[i].pos != b[i].pos) return false;  // glm::vec3 operator==
   }
   return true;
+}
+
+FontAsset makeSdfFont(uint32_t atlasId) {
+  FontAsset f = makeFont(atlasId);  // same glyphs (A/B/V/space)
+  f.backend = FontBackend::SDF;
+  f.pxRange = 8.0f;
+  return f;
 }
 }  // namespace
 
@@ -269,4 +278,171 @@ TEST_CASE("rich: layout state continues across a boundary with a control char",
   TextRenderer single;
   single.submit(f, "A\nB", TextPlacement{}, s, 800, 600);
   REQUIRE(samePositions(rich.batches()[0].verts, single.batches()[0].verts));
+}
+
+TEST_CASE("bb: CameraBillboard routes to world batches only", "[textbatch]") {
+  TextRenderer tr;
+  const FontAsset f = makeSdfFont(40u);
+  tr.submit(f, "A", TextPlacement::cameraBillboard({0, 0, 0}, 0.01f),
+            TextStyle{}, 800, 600);
+  REQUIRE(tr.batches().empty());
+  REQUIRE(tr.worldBatches().size() == 1);
+  REQUIRE(tr.worldBatches()[0].verts.size() == 6);
+}
+
+TEST_CASE("bb: ScreenSpace routes to screen batches only", "[textbatch]") {
+  TextRenderer tr;
+  const FontAsset f = makeSdfFont(41u);
+  tr.submit(f, "A", TextPlacement::screen({0, 0}, 1.0f), TextStyle{}, 800, 600);
+  REQUIRE(tr.worldBatches().empty());
+  REQUIRE(tr.batches().size() == 1);
+}
+
+TEST_CASE("bb: all verts of one billboard share the anchor", "[textbatch]") {
+  TextRenderer tr;
+  const FontAsset f = makeSdfFont(42u);
+  tr.submit(f, "AB", TextPlacement::cameraBillboard({1, 2, 3}, 0.01f),
+            TextStyle{}, 800, 600);
+  for (const auto& v : tr.worldBatches()[0].verts) {
+    REQUIRE(v.anchor == glm::vec3(1, 2, 3));
+  }
+}
+
+TEST_CASE("bb: horizontal centering uses the whole run's logical width",
+          "[textbatch]") {
+  TextRenderer tr;
+  const FontAsset f = makeSdfFont(43u);
+  const float wpp = 0.01f;
+  tr.submit(f, "AA", TextPlacement::cameraBillboard({0, 0, 0}, wpp),
+            TextStyle{}, 800, 600);
+  // logicalWidth = 2*advance(12) = 24; halfW = 12; first glyph localX0 = 0.
+  REQUIRE(tr.worldBatches()[0].verts.front().offset.x ==
+          Catch::Approx((0.0f - 12.0f) * wpp));
+}
+
+TEST_CASE("bb: y-down layout converts to +y up", "[textbatch]") {
+  TextRenderer tr;
+  const FontAsset f = makeSdfFont(44u);
+  tr.submit(f, "A", TextPlacement::cameraBillboard({0, 0, 0}, 0.01f),
+            TextStyle{}, 800, 600);
+  // 'A' bearing.y = 10 -> top local y = -10 -> offset.y = +10*wpp (> 0, up).
+  float maxY = -1e9f;
+  for (const auto& v : tr.worldBatches()[0].verts)
+    maxY = std::max(maxY, v.offset.y);
+  REQUIRE(maxY > 0.0f);
+}
+
+TEST_CASE("bb: one-span and multi-span have identical positions",
+          "[textbatch]") {
+  const FontAsset f = makeSdfFont(45u);
+  const auto p = TextPlacement::cameraBillboard({0, 0, 0}, 0.01f);
+  TextRenderer split;
+  std::vector<TextSpan> spans{{"A", TextStyle{}}, {"V", TextStyle{}}};
+  split.submit(f, spans, p, 800, 600);
+  TextRenderer whole;
+  whole.submit(f, "AV", p, TextStyle{}, 800, 600);
+  const auto& a = split.worldBatches()[0].verts;
+  const auto& b = whole.worldBatches()[0].verts;
+  REQUIRE(a.size() == b.size());
+  for (size_t i = 0; i < a.size(); ++i) {
+    REQUIRE(a[i].offset == b[i].offset);
+    REQUIRE(a[i].anchor == b[i].anchor);
+  }
+}
+
+TEST_CASE("bb: positive scale yields expected world offsets", "[textbatch]") {
+  TextRenderer a;
+  TextRenderer c;
+  const FontAsset f = makeSdfFont(46u);
+  a.submit(f, "A", TextPlacement::cameraBillboard({0, 0, 0}, 0.01f),
+           TextStyle{}, 800, 600);
+  c.submit(f, "A", TextPlacement::cameraBillboard({0, 0, 0}, 0.02f),
+           TextStyle{}, 800, 600);
+  // doubling worldUnitsPerPixel doubles offsets.
+  REQUIRE(c.worldBatches()[0].verts[1].offset.x ==
+          Catch::Approx(a.worldBatches()[0].verts[1].offset.x * 2.0f));
+}
+
+TEST_CASE("bb: non-positive scale does not mirror", "[textbatch]") {
+  TextRenderer tr;
+  const FontAsset f = makeSdfFont(47u);
+  // factory clamps to positive; offsets keep the same sign as a positive-scale
+  // run
+  tr.submit(f, "AA", TextPlacement::cameraBillboard({0, 0, 0}, -1.0f),
+            TextStyle{}, 800, 600);
+  REQUIRE(tr.worldBatches()[0].verts.front().offset.x <
+          0.0f);  // left of center, not mirrored
+}
+
+TEST_CASE("bb: empty text produces no batch", "[textbatch]") {
+  TextRenderer tr;
+  const FontAsset f = makeSdfFont(48u);
+  tr.submit(f, "", TextPlacement::cameraBillboard({0, 0, 0}, 0.01f),
+            TextStyle{}, 800, 600);
+  REQUIRE(tr.worldBatches().empty());
+}
+
+TEST_CASE("bb: empty spans allocate no style", "[textbatch]") {
+  TextRenderer tr;
+  const FontAsset f = makeSdfFont(49u);
+  TextStyle s;
+  std::vector<TextSpan> spans{{"", s}, {"A", s}};
+  tr.submit(f, spans, TextPlacement::cameraBillboard({0, 0, 0}, 0.01f), 800,
+            600);
+  REQUIRE(tr.worldBatches()[0].styles.size() == 1);
+}
+
+TEST_CASE("bb: equal styles dedup", "[textbatch]") {
+  TextRenderer tr;
+  const FontAsset f = makeSdfFont(50u);
+  TextStyle s;
+  std::vector<TextSpan> spans{{"A", s}, {"B", s}};
+  tr.submit(f, spans, TextPlacement::cameraBillboard({0, 0, 0}, 0.01f), 800,
+            600);
+  REQUIRE(tr.worldBatches()[0].styles.size() == 1);
+}
+
+TEST_CASE("bb: over 64 styles split world batches, order preserved",
+          "[textbatch]") {
+  const FontAsset f = makeSdfFont(51u);
+  std::vector<TextSpan> spans;
+  for (int i = 0; i < 65; ++i) {
+    TextStyle s;
+    s.fillColor = {static_cast<float>(i) / 64.0f, 0, 0, 1};
+    spans.push_back({"A", s});
+  }
+  TextRenderer tr;
+  tr.submit(f, spans, TextPlacement::cameraBillboard({0, 0, 0}, 0.01f), 800,
+            600);
+  REQUIRE(tr.worldBatches().size() == 2);
+  REQUIRE(tr.worldBatches()[0].styles.size() == 64);
+  REQUIRE(tr.worldBatches()[1].styles.size() == 1);
+}
+
+TEST_CASE("bb: different atlases (pxRange) do not merge", "[textbatch]") {
+  TextRenderer tr;
+  tr.submit(makeSdfFont(60u), "A",
+            TextPlacement::cameraBillboard({0, 0, 0}, 0.01f), TextStyle{}, 800,
+            600);
+  tr.submit(makeSdfFont(61u), "A",
+            TextPlacement::cameraBillboard({0, 0, 0}, 0.01f), TextStyle{}, 800,
+            600);
+  REQUIRE(tr.worldBatches().size() == 2);
+}
+
+TEST_CASE("bb: non-DF font produces no batch", "[textbatch]") {
+  TextRenderer tr;
+  const FontAsset f = makeFont(62u);  // Bitmap
+  tr.submit(f, "A", TextPlacement::cameraBillboard({0, 0, 0}, 0.01f),
+            TextStyle{}, 800, 600);
+  REQUIRE(tr.worldBatches().empty());
+}
+
+TEST_CASE("bb: temporary-string submission is safe", "[textbatch]") {
+  TextRenderer tr;
+  const FontAsset f = makeSdfFont(63u);
+  tr.submit(f, std::string("AA"),
+            TextPlacement::cameraBillboard({0, 0, 0}, 0.01f), TextStyle{}, 800,
+            600);
+  REQUIRE(tr.worldBatches()[0].verts.size() == 12);
 }
