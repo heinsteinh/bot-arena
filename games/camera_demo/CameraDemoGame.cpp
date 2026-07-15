@@ -69,6 +69,7 @@ const engine::Camera& CameraDemoGame::activeCamera(float aspect) {
       m_orbit.setTarget({0.0f, 0.5f, 0.0f});
       m_orbit.setOrbit(40.0f + m_time * 18.0f, 28.0f, 16.0f);
       m_orbit.resize(aspect);
+      m_orbit.update(0.0f);  // apply the orbit params (computes the lookAt)
       return m_orbit.camera();
   }
 }
