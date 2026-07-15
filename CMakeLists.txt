@@ -41,7 +41,7 @@ add_library(bot_arena_engine STATIC
     engine/renderer/opengl/OpenGLTextureCube.cpp
     engine/renderer/opengl/OpenGLTexture2D.cpp
 
-    engine/renderer/text/Font.cpp
+    engine/renderer/text/FontManager.cpp
 
     engine/particles/ParticleSystem.cpp
 
@@ -146,6 +146,7 @@ add_executable(bot_arena_tests
     tests/test_ship_controls.cpp
     tests/test_font_desc.cpp
     tests/test_text_style.cpp
+    tests/test_font_manager.cpp
 
     engine/core/Arena.cpp
     engine/particles/ParticleSystem.cpp
@@ -154,6 +155,7 @@ add_executable(bot_arena_tests
     engine/renderer/ResourceRegistry.cpp
     engine/renderer/MeshRenderer.cpp
     engine/renderer/CommandBufferPool.cpp
+    engine/renderer/text/FontManager.cpp
 )
 
 target_include_directories(bot_arena_tests
@@ -161,7 +163,7 @@ target_include_directories(bot_arena_tests
 )
 
 target_link_libraries(bot_arena_tests
-    PRIVATE glm::glm Catch2::Catch2WithMain Threads::Threads
+    PRIVATE glm::glm Catch2::Catch2WithMain Threads::Threads spdlog::spdlog
 )
 
 add_test(NAME bot_arena_tests COMMAND bot_arena_tests)
