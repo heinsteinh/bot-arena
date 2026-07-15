@@ -2,6 +2,7 @@
 #define ENGINE_RENDERER_TEXT_TEXTRENDERER_HPP
 
 #include <cstdint>
+#include <span>
 #include <string_view>
 #include <unordered_map>
 #include <utility>
@@ -9,6 +10,7 @@
 
 #include "engine/renderer/text/FontAsset.hpp"
 #include "engine/renderer/text/TextPlacement.hpp"
+#include "engine/renderer/text/TextSpan.hpp"
 #include "engine/renderer/text/TextStyle.hpp"
 #include "engine/renderer/text/TextVertex.hpp"
 
@@ -32,6 +34,9 @@ class TextRenderer {
   void submit(const FontAsset& font, std::string_view text,
               const TextPlacement& placement, const TextStyle& style,
               int screenW, int screenH);
+
+  void submit(const FontAsset& font, std::span<const TextSpan> spans,
+              const TextPlacement& placement, int screenW, int screenH);
 
   const std::vector<Batch>& batches() const { return m_batches; }
   void clear();
