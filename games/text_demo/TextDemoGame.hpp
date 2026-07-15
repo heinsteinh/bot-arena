@@ -21,6 +21,7 @@ class TextDemoGame final : public engine::Layer {
   engine::FontHandle m_sans;     // DejaVu Sans (clean UI face)
   engine::FontHandle m_script;   // Lobster (decorative script)
   engine::FontHandle m_display;  // Bauhaus 93 (heavy display face)
+  engine::FontHandle m_sdf;  // DejaVu Sans baked as SDF (crisp at any scale)
   float m_time = 0.0f;
 };
 

@@ -26,12 +26,13 @@ engine::TextStyle fill(const glm::vec4& c) {
   return s;
 }
 
-engine::FontHandle loadFont(engine::Renderer& r, const char* file,
-                            uint32_t px) {
+engine::FontHandle loadFont(
+    engine::Renderer& r, const char* file, uint32_t px,
+    engine::FontBackend backend = engine::FontBackend::Bitmap) {
   engine::FontDesc desc;
   desc.family = std::string(BOTARENA_ASSET_DIR) + "/fonts/" + file;
   desc.pixelSize = px;
-  desc.backend = engine::FontBackend::Bitmap;
+  desc.backend = backend;
   return r.fonts().load(desc);
 }
 
@@ -75,6 +76,9 @@ void TextDemoGame::loadFonts(engine::Renderer& renderer) {
   if (!m_display) {
     m_display = loadFont(renderer, "BAUHS93.TTF", 44);
     if (!m_display) m_display = m_sans;
+  }
+  if (!m_sdf) {
+    m_sdf = loadFont(renderer, "DejaVuSans.ttf", 48, engine::FontBackend::SDF);
   }
 }
 
@@ -133,6 +137,16 @@ void TextDemoGame::onRender(engine::Renderer& renderer, int width, int height) {
   if (m_display) {
     drawShadow(renderer, m_display, "HEAVY", 640.0f, 490.0f, 1.2f,
                {0.4f, 0.9f, 1.0f, 1.0f}, {0.0f, 0.0f, 0.0f, 0.7f}, 4.0f, 4.0f);
+  }
+
+  // SDF vs bitmap at large scale: same target height (~96 px), bitmap upscaled
+  // 3x (blurry) vs SDF baked-48 at 2x (crisp).
+  const glm::vec4 label{0.15f, 0.2f, 0.3f, 1.0f};
+  renderer.drawText(m_sans, "bitmap 3x", at(850.0f, 285.0f, 0.6f), fill(label));
+  renderer.drawText(m_sans, "Aa 12", at(850.0f, 345.0f, 3.0f), fill(white));
+  renderer.drawText(m_sans, "SDF 2x", at(850.0f, 430.0f, 0.6f), fill(label));
+  if (m_sdf) {
+    renderer.drawText(m_sdf, "Aa 12", at(850.0f, 490.0f, 2.0f), fill(white));
   }
 
   // Footer: honest about the technique.
