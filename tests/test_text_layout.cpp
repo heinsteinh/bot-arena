@@ -55,3 +55,18 @@ TEST_CASE("layoutText uses the missing-glyph hook when provided", "[text]") {
   REQUIRE(q.size() == 1);
   REQUIRE(q[0].x1 == 7.0f);
 }
+
+TEST_CASE("appendTextLayout continues the pen across calls", "[text]") {
+  const auto store = makeStore();
+  engine::TextLayoutState s;
+  std::vector<engine::TextQuad> out;
+  engine::appendTextLayout(store, "A", s, out);
+  engine::appendTextLayout(store, "B", s, out);  // continues from A's advance
+  REQUIRE(out.size() == 2);
+  REQUIRE(out[1].x0 ==
+          9.0f);  // A advance 8 + B bearing.x 1 == layoutText("AB")
+  // Split-across-calls equals the single string:
+  const auto whole = layoutText(store, "AB");
+  REQUIRE(whole.size() == out.size());
+  REQUIRE(whole[1].x0 == out[1].x0);
+}
