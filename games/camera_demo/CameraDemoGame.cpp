@@ -44,7 +44,7 @@ void CameraDemoGame::onUpdate(float dt) {
   if (engine::Input::wasKeyPressed(engine::Key::Space)) {
     m_view = (m_view + 1) % kViewCount;
   }
-  if (m_view == 0) m_orbit.update(dt);
+  // Orbit auto-rotates from m_time in activeCamera(); only fly reads input.
   if (m_view == 1) m_fly.update(dt);
 }
 
