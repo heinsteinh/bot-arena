@@ -87,3 +87,47 @@ TEST_CASE("TextRenderer records backend and pxRange on the batch",
   REQUIRE(tr.batches()[0].backend == FontBackend::SDF);
   REQUIRE(tr.batches()[0].pxRange == 8.0f);
 }
+
+TEST_CASE("TextRenderer dedups equal styles into one table entry",
+          "[textbatch]") {
+  TextRenderer tr;
+  const FontAsset f = makeFont(20u);
+  TextStyle s;
+  s.fillColor = {1, 0, 0, 1};
+  s.outlineWidthPx = 2.0f;
+  tr.submit(f, "A", TextPlacement{}, s, 800, 600);
+  tr.submit(f, "A", TextPlacement{}, s, 800, 600);  // same style
+  REQUIRE(tr.batches().size() == 1);
+  REQUIRE(tr.batches()[0].styles.size() == 1);
+  for (const auto& v : tr.batches()[0].verts) REQUIRE(v.styleIndex == 0u);
+}
+
+TEST_CASE("TextRenderer gives distinct styles distinct indices",
+          "[textbatch]") {
+  TextRenderer tr;
+  const FontAsset f = makeFont(21u);
+  TextStyle a;
+  a.fillColor = {1, 0, 0, 1};
+  TextStyle b;
+  b.fillColor = {0, 1, 0, 1};
+  tr.submit(f, "A", TextPlacement{}, a, 800, 600);
+  tr.submit(f, "A", TextPlacement{}, b, 800, 600);
+  REQUIRE(tr.batches().size() == 1);
+  REQUIRE(tr.batches()[0].styles.size() == 2);
+  // 6 verts for style a (index 0), then 6 for style b (index 1)
+  REQUIRE(tr.batches()[0].verts.front().styleIndex == 0u);
+  REQUIRE(tr.batches()[0].verts.back().styleIndex == 1u);
+}
+
+TEST_CASE("TextRenderer splits a batch past the style cap", "[textbatch]") {
+  TextRenderer tr;
+  const FontAsset f = makeFont(22u);
+  for (int i = 0; i < 65; ++i) {
+    TextStyle s;
+    s.fillColor = {static_cast<float>(i) / 64.0f, 0, 0, 1};  // 65 distinct
+    tr.submit(f, "A", TextPlacement{}, s, 800, 600);
+  }
+  REQUIRE(tr.batches().size() == 2);
+  REQUIRE(tr.batches()[0].styles.size() == 64);
+  REQUIRE(tr.batches()[1].styles.size() == 1);
+}
