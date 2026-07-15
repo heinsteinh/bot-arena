@@ -123,6 +123,12 @@ add_executable(text_demo_game
 )
 target_link_libraries(text_demo_game PRIVATE bot_arena_engine)
 
+add_executable(camera_demo_game
+    games/camera_demo/main.cpp
+    games/camera_demo/CameraDemoGame.cpp
+)
+target_link_libraries(camera_demo_game PRIVATE bot_arena_engine)
+
 enable_testing()
 
 add_executable(bot_arena_tests
