@@ -136,6 +136,7 @@ add_executable(bot_arena_tests
     tests/test_agent_collision.cpp
     tests/test_steering.cpp
     tests/test_text_layout.cpp
+    tests/test_shelf_packer.cpp
     tests/test_debug_overlay.cpp
     tests/test_combat.cpp
     tests/test_particle.cpp
