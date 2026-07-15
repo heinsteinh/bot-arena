@@ -266,7 +266,7 @@ void Renderer::endFrame() {
 
   // Text overlay -> default framebuffer (still bound), on top of the scene.
   for (const TextRenderer::Batch& b : m_textRenderer.batches()) {
-    m_backend->drawTextBatch(b.atlas, b.verts);
+    m_backend->drawTextBatch(b.backend, b.atlas, b.verts, b.pxRange);
   }
 }
 

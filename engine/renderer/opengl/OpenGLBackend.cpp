@@ -960,6 +960,30 @@ OpenGLBackend::OpenGLBackend() {
     glDeleteShader(v);
     glDeleteShader(f);
 
+    // SDF text: resolve coverage from the distance field; crisp at any scale.
+    constexpr const char* sdfFs = R"(
+      #version 460 core
+      in vec2 vUV;
+      in vec4 vFill;
+      out vec4 FragColor;
+      uniform sampler2D uAtlas;
+      uniform float uPxRange;  // reserved for effects; AA uses fwidth here
+      void main() {
+        float d = texture(uAtlas, vUV).r;      // 0.5 == glyph edge
+        float w = fwidth(d);
+        float a = smoothstep(0.5 - w, 0.5 + w, d);
+        FragColor = vec4(vFill.rgb, vFill.a * a);
+      }
+    )";
+    const unsigned int sv = compileShader(GL_VERTEX_SHADER, vs);
+    const unsigned int sf = compileShader(GL_FRAGMENT_SHADER, sdfFs);
+    m_sdfTextProgram = glCreateProgram();
+    glAttachShader(m_sdfTextProgram, sv);
+    glAttachShader(m_sdfTextProgram, sf);
+    glLinkProgram(m_sdfTextProgram);
+    glDeleteShader(sv);
+    glDeleteShader(sf);
+
     glCreateVertexArrays(1, &m_textVao);
     glCreateBuffers(1, &m_textVbo);
     glVertexArrayVertexBuffer(m_textVao, 0, m_textVbo, 0, sizeof(TextVertex));
@@ -1398,17 +1422,23 @@ void OpenGLBackend::readPixels(int x, int y, int width, int height, void* out) {
   glReadPixels(x, y, width, height, GL_RGB, GL_UNSIGNED_BYTE, out);
 }
 
-void OpenGLBackend::drawTextBatch(uint32_t atlasTextureId,
-                                  const std::vector<TextVertex>& verts) {
+void OpenGLBackend::drawTextBatch(FontBackend backend, uint32_t atlasTextureId,
+                                  const std::vector<TextVertex>& verts,
+                                  float pxRange) {
   if (verts.empty()) return;
 
   glNamedBufferData(m_textVbo,
                     static_cast<GLsizeiptr>(verts.size() * sizeof(TextVertex)),
                     verts.data(), GL_DYNAMIC_DRAW);
 
-  glUseProgram(m_textProgram);
+  const unsigned int program =
+      backend == FontBackend::SDF ? m_sdfTextProgram : m_textProgram;
+  glUseProgram(program);
   glBindTextureUnit(0, atlasTextureId);
-  glUniform1i(glGetUniformLocation(m_textProgram, "uAtlas"), 0);
+  glUniform1i(glGetUniformLocation(program, "uAtlas"), 0);
+  if (backend == FontBackend::SDF) {
+    glUniform1f(glGetUniformLocation(program, "uPxRange"), pxRange);
+  }
 
   glEnable(GL_BLEND);
   glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);

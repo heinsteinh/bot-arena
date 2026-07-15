@@ -12,6 +12,7 @@
 #include "engine/renderer/ParticleInstance.hpp"
 #include "engine/renderer/PointLight.hpp"
 #include "engine/renderer/RenderQueue.hpp"
+#include "engine/renderer/text/FontDesc.hpp"
 #include "engine/renderer/text/TextVertex.hpp"
 
 namespace engine {
@@ -80,8 +81,9 @@ class RenderBackend {
 
   // Draw pre-projected (NDC) glyph vertices for one batch: interleaved
   // TextVertex sampling an R8 atlas as coverage, alpha-blended over the frame.
-  virtual void drawTextBatch(uint32_t atlasTextureId,
-                             const std::vector<TextVertex>& verts) = 0;
+  virtual void drawTextBatch(FontBackend backend, uint32_t atlasTextureId,
+                             const std::vector<TextVertex>& verts,
+                             float pxRange) = 0;
 
   // Draw additive camera-facing particle billboards into the bound HDR scene.
   virtual void drawParticles(const ParticleInstance* data, int count) = 0;
