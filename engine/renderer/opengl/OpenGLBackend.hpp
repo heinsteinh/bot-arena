@@ -4,6 +4,7 @@
 #include "engine/core/Base.hpp"
 #include "engine/renderer/RenderBackend.hpp"
 #include "engine/renderer/UniformBuffer.hpp"
+#include "engine/renderer/text/TextStyle.hpp"
 
 namespace engine {
 
@@ -45,8 +46,8 @@ class OpenGLBackend final : public RenderBackend {
   void compositeBloom(uint32_t sceneTex, uint32_t bloomTex) override;
   void readPixels(int x, int y, int width, int height, void* out) override;
   void drawTextBatch(FontBackend backend, uint32_t atlasTextureId,
-                     const std::vector<TextVertex>& verts,
-                     float pxRange) override;
+                     const std::vector<TextVertex>& verts, float pxRange,
+                     const std::vector<GpuStyle>& styles) override;
   void drawParticles(const ParticleInstance* data, int count) override;
 
  private:
@@ -58,6 +59,7 @@ class OpenGLBackend final : public RenderBackend {
 
   unsigned int m_textProgram = 0;
   unsigned int m_sdfTextProgram = 0;
+  Ref<UniformBuffer> m_textStyleUBO;
   unsigned int m_textVao = 0;
   unsigned int m_textVbo = 0;
 

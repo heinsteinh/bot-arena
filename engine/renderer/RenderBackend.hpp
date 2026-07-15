@@ -13,6 +13,7 @@
 #include "engine/renderer/PointLight.hpp"
 #include "engine/renderer/RenderQueue.hpp"
 #include "engine/renderer/text/FontDesc.hpp"
+#include "engine/renderer/text/TextStyle.hpp"
 #include "engine/renderer/text/TextVertex.hpp"
 
 namespace engine {
@@ -83,7 +84,8 @@ class RenderBackend {
   // TextVertex sampling an R8 atlas as coverage, alpha-blended over the frame.
   virtual void drawTextBatch(FontBackend backend, uint32_t atlasTextureId,
                              const std::vector<TextVertex>& verts,
-                             float pxRange) = 0;
+                             float pxRange,
+                             const std::vector<GpuStyle>& styles) = 0;
 
   // Draw additive camera-facing particle billboards into the bound HDR scene.
   virtual void drawParticles(const ParticleInstance* data, int count) = 0;
