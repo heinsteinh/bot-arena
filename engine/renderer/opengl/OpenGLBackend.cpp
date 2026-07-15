@@ -1599,7 +1599,8 @@ void OpenGLBackend::drawWorldTextBatch(
   glDisable(GL_CULL_FACE);
   glBindVertexArray(m_worldTextVao);
   glDrawArrays(GL_TRIANGLES, 0, static_cast<GLsizei>(verts.size()));
-  // Restore common defaults.
+  // Restore the engine's overlay-phase defaults (not saved prior state): this
+  // relies on the fixed composite -> world -> screen-text draw order.
   glDepthMask(GL_TRUE);
   glEnable(GL_DEPTH_TEST);
   glEnable(GL_CULL_FACE);

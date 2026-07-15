@@ -31,7 +31,6 @@ class BillboardDemoGame final : public engine::Layer {
   engine::OrbitCameraController m_camera;
   std::vector<glm::vec3> m_enemies;
   std::vector<DamageNumber> m_numbers;
-  float m_time = 0.0f;
   bool m_screenshot = false;
 
   bool m_ready = false;

@@ -75,7 +75,6 @@ void BillboardDemoGame::onAttach() {
 }
 
 void BillboardDemoGame::onUpdate(float dt) {
-  m_time += dt;
   if (m_screenshot) return;  // deterministic frame: no motion/spawns
   for (DamageNumber& d : m_numbers) {
     d.age += dt;
