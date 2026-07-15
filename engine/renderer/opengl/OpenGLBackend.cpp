@@ -19,7 +19,6 @@
 #include "engine/renderer/Shader.hpp"
 #include "engine/renderer/UniformBuffer.hpp"
 #include "engine/renderer/VertexArray.hpp"
-#include "engine/renderer/text/TextLayout.hpp"
 #include "engine/renderer/text/TextVertex.hpp"
 
 namespace engine {

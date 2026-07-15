@@ -12,7 +12,6 @@
 #include "engine/renderer/ParticleInstance.hpp"
 #include "engine/renderer/PointLight.hpp"
 #include "engine/renderer/RenderQueue.hpp"
-#include "engine/renderer/text/TextLayout.hpp"
 #include "engine/renderer/text/TextVertex.hpp"
 
 namespace engine {

@@ -91,11 +91,16 @@ atlas instead of each baking a duplicate. Output is unchanged from v0.17/v0.27.
 
 ## `text_demo_game`
 
-A new demo target (`games/text_demo/`) exercises the system directly: a title
-line, colored swatches at different scales, an alpha-pulsing animated line,
-and a live tick counter — all through `fonts().load` + `drawText`, with a
-footer noting the deliberate slice-1 scope ("bitmap backend; SDF/outline/glow
-next").
+A new demo target (`games/text_demo/`) exercises the system directly. It loads
+up to three faces through `fonts().load` — DejaVu Sans (tracked, always
+present), plus Lobster Script and Bauhaus 93 when those decorative assets are
+available locally, falling back to DejaVu otherwise (Bauhaus 93 is proprietary
+and is never committed) — and shows a drop shadow, an outline, a colored
+stroke, and a cartoon look for each. All of it is `drawText` layering at the
+app level: the classic bitmap technique of drawing the string a second time,
+offset and in a different colour, underneath the real draw. There is no engine
+effect support behind it, and the footer says so plainly — crisp single-pass
+SDF/MSDF outline & glow arrive in Slices 2-3.
 
 ## Scope for this slice (reserved seams, not implemented)
 

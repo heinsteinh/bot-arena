@@ -67,8 +67,15 @@ void TextDemoGame::onUpdate(float dt) { m_time += dt; }
 
 void TextDemoGame::loadFonts(engine::Renderer& renderer) {
   if (!m_sans) m_sans = loadFont(renderer, "DejaVuSans.ttf", 32);
-  if (!m_script) m_script = loadFont(renderer, "Lobster-Regular.ttf", 48);
-  if (!m_display) m_display = loadFont(renderer, "BAUHS93.TTF", 44);
+  if (!m_script) {
+    m_script = loadFont(renderer, "Lobster-Regular.ttf", 48);
+    if (!m_script)
+      m_script = m_sans;  // clean checkout lacks the decorative face
+  }
+  if (!m_display) {
+    m_display = loadFont(renderer, "BAUHS93.TTF", 44);
+    if (!m_display) m_display = m_sans;
+  }
 }
 
 void TextDemoGame::onRender(engine::Renderer& renderer, int width, int height) {

@@ -3,7 +3,6 @@
 #include <ft2build.h>
 #include <spdlog/spdlog.h>
 
-#include <algorithm>
 #include <vector>
 
 #include "engine/renderer/text/ShelfPacker.hpp"
