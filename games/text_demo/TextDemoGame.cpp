@@ -6,6 +6,7 @@
 #include "engine/renderer/Renderer.hpp"
 #include "engine/renderer/text/FontDesc.hpp"
 #include "engine/renderer/text/TextPlacement.hpp"
+#include "engine/renderer/text/TextSpan.hpp"
 #include "engine/renderer/text/TextStyle.hpp"
 
 namespace textdemo {
@@ -130,6 +131,27 @@ void TextDemoGame::onRender(engine::Renderer& renderer, int width, int height) {
   renderer.drawText(m_sans, "SDF 2x", at(850.0f, 430.0f, 0.6f), fill(label));
   if (m_sdf) {
     renderer.drawText(m_sdf, "Aa 12", at(850.0f, 490.0f, 2.0f), fill(white));
+  }
+
+  // Rich text: per-span styles in a single draw (color + glow + outline).
+  if (m_sdf) {
+    engine::TextStyle plain;
+    plain.fillColor = white;
+    engine::TextStyle red;
+    red.fillColor = {1.0f, 0.35f, 0.3f, 1.0f};
+    engine::TextStyle glow;
+    glow.fillColor = white;
+    glow.glowColor = {0.3f, 0.85f, 1.0f, 1.0f};
+    glow.glowSizePx = 8.0f;
+    engine::TextStyle outlined;
+    outlined.fillColor = {1.0f, 0.85f, 0.2f, 1.0f};
+    outlined.outlineColor = ink;
+    outlined.outlineWidthPx = 2.5f;
+    const engine::TextSpan rich[] = {{"Rich: ", plain},
+                                     {"red ", red},
+                                     {"glow ", glow},
+                                     {"outline", outlined}};
+    renderer.drawText(m_sdf, rich, at(430.0f, 240.0f, 0.7f));
   }
 
   // Footer: honest about the technique.
