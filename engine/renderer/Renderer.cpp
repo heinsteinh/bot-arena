@@ -14,6 +14,7 @@
 #include "engine/renderer/Texture2D.hpp"
 #include "engine/renderer/VertexArray.hpp"
 #include "engine/renderer/text/BitmapFreeTypeSource.hpp"
+#include "engine/renderer/text/SdfFreeTypeSource.hpp"
 
 namespace engine {
 
@@ -135,6 +136,7 @@ void Renderer::initBuiltins() {
     return CreateRef<GlyphAtlas>(tex, baked.atlasWidth, baked.atlasHeight);
   });
   m_fonts->registerSource(CreateScope<BitmapFreeTypeSource>());
+  m_fonts->registerSource(CreateScope<SdfFreeTypeSource>());
 }
 
 void Renderer::beginFrame(int width, int height) {
