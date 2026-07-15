@@ -18,7 +18,7 @@ bool SdfFreeTypeSource::bake(const FontDesc& desc, BakedFont& out) {
     return false;
   }
   // Distance range (px) baked around each edge; 0.5 sample == glyph edge.
-  const FT_Int spread = 8;
+  const FT_Int spread = 24;
   FT_Property_Set(ft, "sdf", "spread", &spread);
 
   FT_Face face;
