@@ -79,12 +79,6 @@ class RenderBackend {
   virtual void compositeBloom(uint32_t sceneTex, uint32_t bloomTex) = 0;
   virtual void readPixels(int x, int y, int width, int height, void* out) = 0;
 
-  // Draw pre-laid-out text quads in screen space (default framebuffer),
-  // sampling an R8 atlas as coverage, alpha-blended over the frame.
-  virtual void drawText(uint32_t atlasTextureId,
-                        const std::vector<TextQuad>& quads, int screenW,
-                        int screenH, const glm::vec4& color) = 0;
-
   // Draw pre-projected (NDC) glyph vertices for one batch: interleaved
   // TextVertex sampling an R8 atlas as coverage, alpha-blended over the frame.
   virtual void drawTextBatch(uint32_t atlasTextureId,

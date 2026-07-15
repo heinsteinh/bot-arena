@@ -44,8 +44,6 @@ class OpenGLBackend final : public RenderBackend {
   void setLight(const LightUniforms& light, uint32_t shadowMapTexture) override;
   void compositeBloom(uint32_t sceneTex, uint32_t bloomTex) override;
   void readPixels(int x, int y, int width, int height, void* out) override;
-  void drawText(uint32_t atlasTextureId, const std::vector<TextQuad>& quads,
-                int screenW, int screenH, const glm::vec4& color) override;
   void drawTextBatch(uint32_t atlasTextureId,
                      const std::vector<TextVertex>& verts) override;
   void drawParticles(const ParticleInstance* data, int count) override;

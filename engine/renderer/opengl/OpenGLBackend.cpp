@@ -1399,43 +1399,6 @@ void OpenGLBackend::readPixels(int x, int y, int width, int height, void* out) {
   glReadPixels(x, y, width, height, GL_RGB, GL_UNSIGNED_BYTE, out);
 }
 
-void OpenGLBackend::drawText(uint32_t atlasTextureId,
-                             const std::vector<TextQuad>& quads, int screenW,
-                             int screenH, const glm::vec4& color) {
-  if (quads.empty() || screenW <= 0 || screenH <= 0) return;
-
-  std::vector<float> verts;
-  verts.reserve(quads.size() * 6 * 4);
-  const auto ndcX = [&](float px) { return px / screenW * 2.0f - 1.0f; };
-  const auto ndcY = [&](float py) { return 1.0f - py / screenH * 2.0f; };
-  for (const TextQuad& q : quads) {
-    const float x0 = ndcX(q.x0), x1 = ndcX(q.x1);
-    const float y0 = ndcY(q.y0), y1 = ndcY(q.y1);
-    const float quad[6][4] = {{x0, y0, q.u0, q.v0}, {x0, y1, q.u0, q.v1},
-                              {x1, y1, q.u1, q.v1}, {x1, y1, q.u1, q.v1},
-                              {x1, y0, q.u1, q.v0}, {x0, y0, q.u0, q.v0}};
-    for (const auto& vert : quad) verts.insert(verts.end(), vert, vert + 4);
-  }
-
-  glNamedBufferData(m_textVbo,
-                    static_cast<GLsizeiptr>(verts.size() * sizeof(float)),
-                    verts.data(), GL_DYNAMIC_DRAW);
-
-  glUseProgram(m_textProgram);
-  glBindTextureUnit(0, atlasTextureId);
-  glUniform1i(glGetUniformLocation(m_textProgram, "uAtlas"), 0);
-  glUniform4f(glGetUniformLocation(m_textProgram, "uColor"), color.r, color.g,
-              color.b, color.a);
-
-  glEnable(GL_BLEND);
-  glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-  glDisable(GL_DEPTH_TEST);
-  glBindVertexArray(m_textVao);
-  glDrawArrays(GL_TRIANGLES, 0, static_cast<GLsizei>(quads.size() * 6));
-  glEnable(GL_DEPTH_TEST);
-  glDisable(GL_BLEND);
-}
-
 void OpenGLBackend::drawTextBatch(uint32_t atlasTextureId,
                                   const std::vector<TextVertex>& verts) {
   if (verts.empty()) return;

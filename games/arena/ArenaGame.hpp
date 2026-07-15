@@ -7,7 +7,7 @@
 #include "engine/core/Layer.hpp"
 #include "engine/renderer/OrbitCameraController.hpp"
 #include "engine/renderer/RenderCommand.hpp"
-#include "engine/renderer/text/Font.hpp"
+#include "engine/renderer/text/FontAsset.hpp"
 
 namespace arena {
 
@@ -47,7 +47,7 @@ class ArenaGame final : public engine::Layer {
 
   int m_kills = 0;
   int m_deaths = 0;
-  engine::Ref<engine::Font> m_font;
+  engine::FontHandle m_font;
 };
 
 }  // namespace arena

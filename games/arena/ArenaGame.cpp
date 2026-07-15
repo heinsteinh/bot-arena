@@ -16,6 +16,9 @@
 #include "engine/renderer/MeshRenderer.hpp"
 #include "engine/renderer/PointLight.hpp"
 #include "engine/renderer/ResourceRegistry.hpp"
+#include "engine/renderer/text/FontDesc.hpp"
+#include "engine/renderer/text/TextPlacement.hpp"
+#include "engine/renderer/text/TextStyle.hpp"
 #include "games/arena/Components.hpp"
 
 namespace arena {
@@ -23,8 +26,6 @@ namespace arena {
 void ArenaGame::onAttach() {
   m_camera.setTarget({0.0f, 0.5f, 0.0f});
   m_camera.setOrbit(45.0f, 55.0f, 18.0f);
-  m_font = engine::Font::Load(
-      std::string(BOTARENA_ASSET_DIR) + "/fonts/DejaVuSans.ttf", 32);
   spawnEntities();
   // Deterministic warm-up so a single-frame (headless screenshot) capture shows
   // a genuinely simulated state — bots advanced along their velocities and some
@@ -203,6 +204,13 @@ void ArenaGame::onRender(engine::Renderer& renderer, int width, int height) {
     m_resourcesReady = true;
   }
 
+  if (!m_font) {
+    engine::FontDesc desc;
+    desc.family = std::string(BOTARENA_ASSET_DIR) + "/fonts/DejaVuSans.ttf";
+    desc.pixelSize = 32;
+    m_font = renderer.fonts().load(desc);
+  }
+
   const float aspect =
       height > 0 ? static_cast<float>(width) / static_cast<float>(height)
                  : 1.0f;
@@ -260,12 +268,24 @@ void ArenaGame::onRender(engine::Renderer& renderer, int width, int height) {
       playerMax = m_registry.get<Health>(e).max;
     }
     const float bottom = static_cast<float>(height);
-    renderer.drawText(*m_font,
+
+    engine::TextPlacement hpP;
+    hpP.pos = {8.0f, bottom - 34.0f};
+    hpP.scale = 0.7f;
+    engine::TextStyle hpS;
+    hpS.fillColor = glm::vec4(1.0f);
+    renderer.drawText(m_font,
                       "HP: " + std::to_string(static_cast<int>(playerHp)) +
                           " / " + std::to_string(static_cast<int>(playerMax)),
-                      8.0f, bottom - 34.0f, 0.7f, glm::vec4(1.0f));
-    renderer.drawText(*m_font, "Kills: " + std::to_string(m_kills), 8.0f,
-                      bottom - 12.0f, 0.7f, glm::vec4(1.0f));
+                      hpP, hpS);
+
+    engine::TextPlacement killsP;
+    killsP.pos = {8.0f, bottom - 12.0f};
+    killsP.scale = 0.7f;
+    engine::TextStyle killsS;
+    killsS.fillColor = glm::vec4(1.0f);
+    renderer.drawText(m_font, "Kills: " + std::to_string(m_kills), killsP,
+                      killsS);
   }
 }
 

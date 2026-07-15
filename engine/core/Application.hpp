@@ -11,7 +11,7 @@
 #include "engine/core/Window.hpp"
 #include "engine/imgui/ImGuiLayer.hpp"
 #include "engine/renderer/Renderer.hpp"
-#include "engine/renderer/text/Font.hpp"
+#include "engine/renderer/text/FontAsset.hpp"
 
 namespace engine {
 
@@ -30,7 +30,7 @@ class Application {
   std::unique_ptr<Renderer> m_renderer;
   std::unique_ptr<ImGuiLayer> m_imguiLayer;
 
-  Ref<Font> m_debugFont;
+  FontHandle m_debugFont;
   float m_fps = 0.0f;
   bool m_showDebug = true;
 
