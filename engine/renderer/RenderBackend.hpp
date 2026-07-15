@@ -15,6 +15,7 @@
 #include "engine/renderer/text/FontDesc.hpp"
 #include "engine/renderer/text/TextStyle.hpp"
 #include "engine/renderer/text/TextVertex.hpp"
+#include "engine/renderer/text/WorldTextVertex.hpp"
 
 namespace engine {
 
@@ -86,6 +87,14 @@ class RenderBackend {
                              const std::vector<TextVertex>& verts,
                              float pxRange,
                              const std::vector<GpuStyle>& styles) = 0;
+
+  // Draw pre-projected camera-billboard world text vertices for one batch:
+  // an SDF glyph quad billboarded about each anchor, always drawn on top
+  // (no depth test/write, no culling), alpha-blended over the frame.
+  virtual void drawWorldTextBatch(uint32_t atlasTextureId,
+                                  const std::vector<WorldTextVertex>& verts,
+                                  float pxRange,
+                                  const std::vector<GpuStyle>& styles) = 0;
 
   // Draw additive camera-facing particle billboards into the bound HDR scene.
   virtual void drawParticles(const ParticleInstance* data, int count) = 0;

@@ -5,6 +5,7 @@
 #include "engine/renderer/RenderBackend.hpp"
 #include "engine/renderer/UniformBuffer.hpp"
 #include "engine/renderer/text/TextStyle.hpp"
+#include "engine/renderer/text/WorldTextVertex.hpp"
 
 namespace engine {
 
@@ -48,6 +49,10 @@ class OpenGLBackend final : public RenderBackend {
   void drawTextBatch(FontBackend backend, uint32_t atlasTextureId,
                      const std::vector<TextVertex>& verts, float pxRange,
                      const std::vector<GpuStyle>& styles) override;
+  void drawWorldTextBatch(uint32_t atlasTextureId,
+                          const std::vector<WorldTextVertex>& verts,
+                          float pxRange,
+                          const std::vector<GpuStyle>& styles) override;
   void drawParticles(const ParticleInstance* data, int count) override;
 
  private:
@@ -62,6 +67,10 @@ class OpenGLBackend final : public RenderBackend {
   Ref<UniformBuffer> m_textStyleUBO;
   unsigned int m_textVao = 0;
   unsigned int m_textVbo = 0;
+
+  unsigned int m_worldTextProgram = 0;
+  unsigned int m_worldTextVao = 0;
+  unsigned int m_worldTextVbo = 0;
 
   unsigned int m_particleProgram = 0;
   unsigned int m_particleVao = 0;
