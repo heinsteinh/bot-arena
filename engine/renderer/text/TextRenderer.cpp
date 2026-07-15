@@ -64,7 +64,8 @@ void TextRenderer::submit(const FontAsset& font,
                 toGpuStyle(span.style));
     Batch& batch =
         m_batches[batchIdx];  // fetch AFTER acquire (may have reallocated)
-    batch.verts.reserve(batch.verts.size() + (quads.size() - first) * 6);
+    // No per-span reserve: exact-size reserves across many same-batch spans
+    // would defeat the vector's amortized growth; push_back amortizes here.
 
     for (std::size_t qi = first; qi < quads.size(); ++qi) {
       const TextQuad& q = quads[qi];
