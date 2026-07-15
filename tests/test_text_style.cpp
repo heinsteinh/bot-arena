@@ -1,8 +1,10 @@
 #include <catch2/catch_test_macros.hpp>
 
+#include "engine/renderer/text/FontAsset.hpp"
 #include "engine/renderer/text/TextPlacement.hpp"
 #include "engine/renderer/text/TextStyle.hpp"
 #include "engine/renderer/text/TextVertex.hpp"
+#include "engine/renderer/text/WorldTextVertex.hpp"
 
 using engine::packColor;
 using engine::TextPlacement;
@@ -67,4 +69,27 @@ TEST_CASE("default TextStyle has effects off", "[textstyle]") {
   REQUIRE(s.outlineWidthPx == 0.0f);
   REQUIRE(s.glowSizePx == 0.0f);
   REQUIRE(s.shadowOffsetPx == glm::vec2(0.0f));
+}
+
+TEST_CASE("TextPlacement factories set mode and fields", "[textstyle]") {
+  const auto s = engine::TextPlacement::screen({8.0f, 20.0f}, 0.7f);
+  REQUIRE(s.mode == engine::PlacementMode::ScreenSpace);
+  REQUIRE(s.pos == glm::vec2(8.0f, 20.0f));
+  REQUIRE(s.scale == 0.7f);
+
+  const auto b = engine::TextPlacement::cameraBillboard({1, 2, 3}, 0.02f);
+  REQUIRE(b.mode == engine::PlacementMode::CameraBillboard);
+  REQUIRE(b.worldPos == glm::vec3(1, 2, 3));
+  REQUIRE(b.scale == 0.02f);  // worldUnitsPerPixel
+}
+
+TEST_CASE("cameraBillboard clamps non-positive scale (never mirrors)",
+          "[textstyle]") {
+  REQUIRE(engine::TextPlacement::cameraBillboard({0, 0, 0}, -1.0f).scale >
+          0.0f);
+  REQUIRE(engine::TextPlacement::cameraBillboard({0, 0, 0}, 0.0f).scale > 0.0f);
+}
+
+TEST_CASE("WorldTextVertex is 32 bytes", "[textstyle]") {
+  REQUIRE(sizeof(engine::WorldTextVertex) == 32);
 }
