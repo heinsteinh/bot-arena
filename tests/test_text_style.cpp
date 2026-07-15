@@ -31,3 +31,40 @@ TEST_CASE("defaults are sensible", "[textstyle]") {
   REQUIRE(p.mode == engine::PlacementMode::ScreenSpace);
   REQUIRE(p.scale == 1.0f);
 }
+
+TEST_CASE("toGpuStyle packs effect params into std140 vec4s", "[textstyle]") {
+  engine::TextStyle s;
+  s.fillColor = {1, 1, 1, 1};
+  s.outlineColor = {0, 0, 0, 1};
+  s.outlineWidthPx = 3.0f;
+  s.glowColor = {0, 1, 1, 1};
+  s.glowSizePx = 8.0f;
+  s.shadowColor = {0, 0, 0, 0.7f};
+  s.shadowOffsetPx = {3.0f, 4.0f};
+  s.shadowSoftnessPx = 2.0f;
+  const engine::GpuStyle g = engine::toGpuStyle(s);
+  REQUIRE(g.fillColor == glm::vec4(1, 1, 1, 1));
+  REQUIRE(g.outlineColor == glm::vec4(0, 0, 0, 1));
+  REQUIRE(g.glowColor == glm::vec4(0, 1, 1, 1));
+  REQUIRE(g.shadowColor == glm::vec4(0, 0, 0, 0.7f));
+  REQUIRE(g.params0 ==
+          glm::vec4(3.0f, 8.0f, 3.0f, 4.0f));  // outlineW, glowSz, shadowOff.xy
+  REQUIRE(g.params1.x == 2.0f);                // shadowSoftness
+}
+
+TEST_CASE("GpuStyle is 96 bytes and equality-comparable", "[textstyle]") {
+  REQUIRE(sizeof(engine::GpuStyle) == 96);
+  engine::GpuStyle a = engine::toGpuStyle(engine::TextStyle{});
+  engine::GpuStyle b = engine::toGpuStyle(engine::TextStyle{});
+  REQUIRE(a == b);
+  engine::TextStyle s2;
+  s2.outlineWidthPx = 1.0f;
+  REQUIRE_FALSE(a == engine::toGpuStyle(s2));
+}
+
+TEST_CASE("default TextStyle has effects off", "[textstyle]") {
+  engine::TextStyle s;
+  REQUIRE(s.outlineWidthPx == 0.0f);
+  REQUIRE(s.glowSizePx == 0.0f);
+  REQUIRE(s.shadowOffsetPx == glm::vec2(0.0f));
+}
