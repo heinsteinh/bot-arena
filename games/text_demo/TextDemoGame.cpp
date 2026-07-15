@@ -152,8 +152,8 @@ void TextDemoGame::onRender(engine::Renderer& renderer, int width, int height) {
   // Footer: honest about the technique.
   renderer.drawText(
       m_sans,
-      "Effects layered on the bitmap backend; crisp single-pass SDF/MSDF "
-      "outline & glow arrive in Slices 2-3.",
+      "SDF live - crisp at any scale (right). Effects are app-level layering; "
+      "single-pass SDF/MSDF next.",
       at(40.0f, h - 30.0f, 0.6f), fill({0.6f, 0.6f, 0.65f, 1.0f}));
 }
 
