@@ -20,6 +20,7 @@
 #include "engine/renderer/UniformBuffer.hpp"
 #include "engine/renderer/VertexArray.hpp"
 #include "engine/renderer/text/TextLayout.hpp"
+#include "engine/renderer/text/TextVertex.hpp"
 
 namespace engine {
 
@@ -922,27 +923,33 @@ OpenGLBackend::OpenGLBackend() {
   m_bloomBlurShader = createBloomBlurProgram();
   m_emissiveShader = createEmissiveProgram();
 
-  // Text overlay: screen-space textured quads sampling an R8 atlas.
+  // Text overlay: screen-space glyph quads (TextVertex), per-vertex color,
+  // sampling an R8 atlas as coverage.
   {
     constexpr const char* vs = R"(
       #version 460 core
-      layout(location = 0) in vec2 aPos;
+      layout(location = 0) in vec3 aPos;
       layout(location = 1) in vec2 aUV;
+      layout(location = 2) in uint aFill;
+      layout(location = 3) in uint aOutline;
+      layout(location = 4) in uint aStyle;
       out vec2 vUV;
+      out vec4 vFill;
       void main() {
         vUV = aUV;
-        gl_Position = vec4(aPos, 0.0, 1.0);
+        vFill = unpackUnorm4x8(aFill);
+        gl_Position = vec4(aPos, 1.0);
       }
     )";
     constexpr const char* fs = R"(
       #version 460 core
       in vec2 vUV;
+      in vec4 vFill;
       out vec4 FragColor;
       uniform sampler2D uAtlas;
-      uniform vec4 uColor;
       void main() {
         float a = texture(uAtlas, vUV).r;
-        FragColor = vec4(uColor.rgb, uColor.a * a);
+        FragColor = vec4(vFill.rgb, vFill.a * a);
       }
     )";
     const unsigned int v = compileShader(GL_VERTEX_SHADER, vs);
@@ -956,14 +963,27 @@ OpenGLBackend::OpenGLBackend() {
 
     glCreateVertexArrays(1, &m_textVao);
     glCreateBuffers(1, &m_textVbo);
-    glVertexArrayVertexBuffer(m_textVao, 0, m_textVbo, 0, 4 * sizeof(float));
+    glVertexArrayVertexBuffer(m_textVao, 0, m_textVbo, 0, sizeof(TextVertex));
     glEnableVertexArrayAttrib(m_textVao, 0);
-    glVertexArrayAttribFormat(m_textVao, 0, 2, GL_FLOAT, GL_FALSE, 0);
+    glVertexArrayAttribFormat(m_textVao, 0, 3, GL_FLOAT, GL_FALSE,
+                              offsetof(TextVertex, pos));
     glVertexArrayAttribBinding(m_textVao, 0, 0);
     glEnableVertexArrayAttrib(m_textVao, 1);
     glVertexArrayAttribFormat(m_textVao, 1, 2, GL_FLOAT, GL_FALSE,
-                              2 * sizeof(float));
+                              offsetof(TextVertex, uv));
     glVertexArrayAttribBinding(m_textVao, 1, 0);
+    glEnableVertexArrayAttrib(m_textVao, 2);
+    glVertexArrayAttribIFormat(m_textVao, 2, 1, GL_UNSIGNED_INT,
+                               offsetof(TextVertex, fillColor));
+    glVertexArrayAttribBinding(m_textVao, 2, 0);
+    glEnableVertexArrayAttrib(m_textVao, 3);
+    glVertexArrayAttribIFormat(m_textVao, 3, 1, GL_UNSIGNED_INT,
+                               offsetof(TextVertex, outlineColor));
+    glVertexArrayAttribBinding(m_textVao, 3, 0);
+    glEnableVertexArrayAttrib(m_textVao, 4);
+    glVertexArrayAttribIFormat(m_textVao, 4, 1, GL_UNSIGNED_INT,
+                               offsetof(TextVertex, styleIndex));
+    glVertexArrayAttribBinding(m_textVao, 4, 0);
   }
 
   // Additive camera-facing particle billboards (instanced).
@@ -1412,6 +1432,27 @@ void OpenGLBackend::drawText(uint32_t atlasTextureId,
   glDisable(GL_DEPTH_TEST);
   glBindVertexArray(m_textVao);
   glDrawArrays(GL_TRIANGLES, 0, static_cast<GLsizei>(quads.size() * 6));
+  glEnable(GL_DEPTH_TEST);
+  glDisable(GL_BLEND);
+}
+
+void OpenGLBackend::drawTextBatch(uint32_t atlasTextureId,
+                                  const std::vector<TextVertex>& verts) {
+  if (verts.empty()) return;
+
+  glNamedBufferData(m_textVbo,
+                    static_cast<GLsizeiptr>(verts.size() * sizeof(TextVertex)),
+                    verts.data(), GL_DYNAMIC_DRAW);
+
+  glUseProgram(m_textProgram);
+  glBindTextureUnit(0, atlasTextureId);
+  glUniform1i(glGetUniformLocation(m_textProgram, "uAtlas"), 0);
+
+  glEnable(GL_BLEND);
+  glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+  glDisable(GL_DEPTH_TEST);
+  glBindVertexArray(m_textVao);
+  glDrawArrays(GL_TRIANGLES, 0, static_cast<GLsizei>(verts.size()));
   glEnable(GL_DEPTH_TEST);
   glDisable(GL_BLEND);
 }
