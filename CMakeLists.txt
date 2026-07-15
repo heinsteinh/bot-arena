@@ -41,7 +41,9 @@ add_library(bot_arena_engine STATIC
     engine/renderer/opengl/OpenGLTextureCube.cpp
     engine/renderer/opengl/OpenGLTexture2D.cpp
 
-    engine/renderer/text/Font.cpp
+    engine/renderer/text/FontManager.cpp
+    engine/renderer/text/BitmapFreeTypeSource.cpp
+    engine/renderer/text/TextRenderer.cpp
 
     engine/particles/ParticleSystem.cpp
 
@@ -114,6 +116,12 @@ add_executable(shooter_game
 )
 target_link_libraries(shooter_game PRIVATE bot_arena_engine)
 
+add_executable(text_demo_game
+    games/text_demo/main.cpp
+    games/text_demo/TextDemoGame.cpp
+)
+target_link_libraries(text_demo_game PRIVATE bot_arena_engine)
+
 enable_testing()
 
 add_executable(bot_arena_tests
@@ -136,6 +144,7 @@ add_executable(bot_arena_tests
     tests/test_agent_collision.cpp
     tests/test_steering.cpp
     tests/test_text_layout.cpp
+    tests/test_shelf_packer.cpp
     tests/test_debug_overlay.cpp
     tests/test_combat.cpp
     tests/test_particle.cpp
@@ -143,6 +152,10 @@ add_executable(bot_arena_tests
     tests/test_mesh_bounds.cpp
     tests/test_texture_path.cpp
     tests/test_ship_controls.cpp
+    tests/test_font_desc.cpp
+    tests/test_text_style.cpp
+    tests/test_font_manager.cpp
+    tests/test_text_batch.cpp
 
     engine/core/Arena.cpp
     engine/particles/ParticleSystem.cpp
@@ -151,6 +164,8 @@ add_executable(bot_arena_tests
     engine/renderer/ResourceRegistry.cpp
     engine/renderer/MeshRenderer.cpp
     engine/renderer/CommandBufferPool.cpp
+    engine/renderer/text/FontManager.cpp
+    engine/renderer/text/TextRenderer.cpp
 )
 
 target_include_directories(bot_arena_tests
@@ -158,7 +173,7 @@ target_include_directories(bot_arena_tests
 )
 
 target_link_libraries(bot_arena_tests
-    PRIVATE glm::glm Catch2::Catch2WithMain Threads::Threads
+    PRIVATE glm::glm Catch2::Catch2WithMain Threads::Threads spdlog::spdlog
 )
 
 add_test(NAME bot_arena_tests COMMAND bot_arena_tests)

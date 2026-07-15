@@ -1,53 +1,49 @@
-#include "engine/renderer/text/Font.hpp"
+#include "engine/renderer/text/BitmapFreeTypeSource.hpp"
 
 #include <ft2build.h>
 #include <spdlog/spdlog.h>
 
-#include <algorithm>
 #include <vector>
+
+#include "engine/renderer/text/ShelfPacker.hpp"
 #include FT_FREETYPE_H
 
 namespace engine {
 
-Ref<Font> Font::Load(const std::string& ttfPath, uint32_t pixelSize) {
+bool BitmapFreeTypeSource::bake(const FontDesc& desc, BakedFont& out) {
   FT_Library ft;
   if (FT_Init_FreeType(&ft)) {
     spdlog::error("FreeType init failed");
-    return nullptr;
+    return false;
   }
   FT_Face face;
-  if (FT_New_Face(ft, ttfPath.c_str(), 0, &face)) {
-    spdlog::error("Failed to load font: {}", ttfPath);
+  if (FT_New_Face(ft, desc.family.c_str(), 0, &face)) {
+    spdlog::error("Failed to load font: {}", desc.family);
     FT_Done_FreeType(ft);
-    return nullptr;
+    return false;
   }
-  FT_Set_Pixel_Sizes(face, 0, pixelSize);
+  FT_Set_Pixel_Sizes(face, 0, desc.pixelSize);
 
-  const int pad = 1;
   const int atlasW = 512;
+  ShelfPacker packer(atlasW, /*pad=*/1);
 
   struct Pending {
-    unsigned char c;
+    char32_t cp;
     int x, y, w, h, bx, by;
     float adv;
     std::vector<unsigned char> bmp;
   };
   std::vector<Pending> pend;
-  int penX = pad, penY = pad, rowH = 0;
-  for (unsigned char c = 32; c <= 126; ++c) {
+  for (char32_t c = desc.glyphRange.first; c <= desc.glyphRange.last; ++c) {
     if (FT_Load_Char(face, c, FT_LOAD_RENDER)) continue;
     FT_GlyphSlot g = face->glyph;
     const int w = static_cast<int>(g->bitmap.width);
     const int h = static_cast<int>(g->bitmap.rows);
-    if (penX + w + pad > atlasW) {
-      penX = pad;
-      penY += rowH + pad;
-      rowH = 0;
-    }
+    const glm::ivec2 at = packer.place(w, h);
     Pending p;
-    p.c = c;
-    p.x = penX;
-    p.y = penY;
+    p.cp = c;
+    p.x = at.x;
+    p.y = at.y;
     p.w = w;
     p.h = h;
     p.bx = g->bitmap_left;
@@ -55,17 +51,18 @@ Ref<Font> Font::Load(const std::string& ttfPath, uint32_t pixelSize) {
     p.adv = static_cast<float>(g->advance.x >> 6);
     p.bmp.assign(g->bitmap.buffer, g->bitmap.buffer + (w * h));
     pend.push_back(std::move(p));
-    penX += w + pad;
-    rowH = std::max(rowH, h);
   }
-  const int atlasH = penY + rowH + pad;
+  const int atlasH = packer.height();
 
-  std::vector<unsigned char> atlas(static_cast<size_t>(atlasW) * atlasH, 0);
-  GlyphMap glyphs{};
+  out.atlasWidth = atlasW;
+  out.atlasHeight = atlasH;
+  out.pxRange = 0.0f;
+  out.atlasPixels.assign(static_cast<size_t>(atlasW) * atlasH, 0);
   for (const Pending& p : pend) {
     for (int row = 0; row < p.h; ++row) {
       for (int col = 0; col < p.w; ++col) {
-        atlas[(p.y + row) * atlasW + (p.x + col)] = p.bmp[row * p.w + col];
+        out.atlasPixels[(p.y + row) * atlasW + (p.x + col)] =
+            p.bmp[row * p.w + col];
       }
     }
     Glyph gl;
@@ -76,16 +73,17 @@ Ref<Font> Font::Load(const std::string& ttfPath, uint32_t pixelSize) {
                 static_cast<float>(p.y) / atlasH};
     gl.uvMax = {static_cast<float>(p.x + p.w) / atlasW,
                 static_cast<float>(p.y + p.h) / atlasH};
-    glyphs[p.c] = gl;
+    out.glyphs[p.cp] = gl;
   }
+
+  out.metrics.pixelSize = static_cast<float>(desc.pixelSize);
+  out.metrics.ascent = static_cast<float>(face->size->metrics.ascender >> 6);
+  out.metrics.descent = static_cast<float>(face->size->metrics.descender >> 6);
+  out.metrics.lineGap = static_cast<float>(face->size->metrics.height >> 6);
 
   FT_Done_Face(face);
   FT_Done_FreeType(ft);
-
-  Ref<Texture2D> tex = Texture2D::Create(static_cast<uint32_t>(atlasW),
-                                         static_cast<uint32_t>(atlasH));
-  tex->setData(atlas.data(), static_cast<uint32_t>(atlas.size()));
-  return CreateRef<Font>(glyphs, std::move(tex));
+  return true;
 }
 
 }  // namespace engine

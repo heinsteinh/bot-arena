@@ -22,8 +22,11 @@
 #include "engine/renderer/RenderQueue.hpp"
 #include "engine/renderer/ResourceRegistry.hpp"
 #include "engine/renderer/TextureCube.hpp"
-#include "engine/renderer/text/Font.hpp"
-#include "engine/renderer/text/TextLayout.hpp"
+#include "engine/renderer/text/FontAsset.hpp"
+#include "engine/renderer/text/FontManager.hpp"
+#include "engine/renderer/text/TextPlacement.hpp"
+#include "engine/renderer/text/TextRenderer.hpp"
+#include "engine/renderer/text/TextStyle.hpp"
 
 namespace engine {
 
@@ -55,10 +58,13 @@ class Renderer {
 
   void saveScreenshot(const std::string& path, int width, int height);
 
-  // Enqueue a screen-space text string (pixel coords, y-down) to be drawn over
-  // the composited frame in endFrame.
-  void drawText(const Font& font, std::string_view text, float x, float y,
-                float scale, const glm::vec4& color);
+  // Access the font cache; callers load via renderer.fonts().load(desc).
+  FontManager& fonts() { return *m_fonts; }
+
+  // Enqueue a text string for this frame. Screen-space placement uses pixel
+  // coords (y-down); style's fillColor is honored by the bitmap backend.
+  void drawText(const FontHandle& font, std::string_view text,
+                const TextPlacement& placement, const TextStyle& style);
 
   // Enqueue additive particle billboards drawn into the HDR scene (before
   // bloom) in endFrame.
@@ -79,16 +85,11 @@ class Renderer {
 
   void initBuiltins();
 
-  struct TextBatch {
-    uint32_t atlas;
-    std::vector<TextQuad> quads;
-    glm::vec4 color;
-  };
-
   JobSystem& m_jobs;
   std::vector<Scope<WorkerBuffer>> m_lanes;
   std::vector<RenderEntry> m_merged;
-  std::vector<TextBatch> m_textBatches;
+  Scope<FontManager> m_fonts;
+  TextRenderer m_textRenderer;
   std::vector<ParticleInstance> m_particleInstances;
   ResourceRegistry m_registry;
   Scope<RenderBackend> m_backend;

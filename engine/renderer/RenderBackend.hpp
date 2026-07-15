@@ -12,7 +12,7 @@
 #include "engine/renderer/ParticleInstance.hpp"
 #include "engine/renderer/PointLight.hpp"
 #include "engine/renderer/RenderQueue.hpp"
-#include "engine/renderer/text/TextLayout.hpp"
+#include "engine/renderer/text/TextVertex.hpp"
 
 namespace engine {
 
@@ -78,11 +78,10 @@ class RenderBackend {
   virtual void compositeBloom(uint32_t sceneTex, uint32_t bloomTex) = 0;
   virtual void readPixels(int x, int y, int width, int height, void* out) = 0;
 
-  // Draw pre-laid-out text quads in screen space (default framebuffer),
-  // sampling an R8 atlas as coverage, alpha-blended over the frame.
-  virtual void drawText(uint32_t atlasTextureId,
-                        const std::vector<TextQuad>& quads, int screenW,
-                        int screenH, const glm::vec4& color) = 0;
+  // Draw pre-projected (NDC) glyph vertices for one batch: interleaved
+  // TextVertex sampling an R8 atlas as coverage, alpha-blended over the frame.
+  virtual void drawTextBatch(uint32_t atlasTextureId,
+                             const std::vector<TextVertex>& verts) = 0;
 
   // Draw additive camera-facing particle billboards into the bound HDR scene.
   virtual void drawParticles(const ParticleInstance* data, int count) = 0;
