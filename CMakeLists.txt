@@ -144,6 +144,7 @@ add_executable(bot_arena_tests
     tests/test_mesh_bounds.cpp
     tests/test_texture_path.cpp
     tests/test_ship_controls.cpp
+    tests/test_font_desc.cpp
 
     engine/core/Arena.cpp
     engine/particles/ParticleSystem.cpp
