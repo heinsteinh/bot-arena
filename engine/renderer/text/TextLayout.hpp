@@ -1,52 +1,54 @@
 #ifndef ENGINE_RENDERER_TEXT_TEXTLAYOUT_HPP
 #define ENGINE_RENDERER_TEXT_TEXTLAYOUT_HPP
 
-#include <array>
-#include <glm/glm.hpp>
+#include <functional>
 #include <string_view>
 #include <vector>
 
+#include "engine/renderer/text/Glyph.hpp"
+
 namespace engine {
 
-struct Glyph {
-  glm::vec2 size{0.0f};     // px (width, height)
-  glm::vec2 bearing{0.0f};  // px (left, top-above-baseline)
-  float advance = 0.0f;     // px
-  glm::vec2 uvMin{0.0f};
-  glm::vec2 uvMax{0.0f};
-};
-
-using GlyphMap = std::array<Glyph, 128>;  // ASCII-indexed
-
 struct TextQuad {
-  float x0, y0, x1, y1;  // pixel-space corners (top-left, bottom-right)
+  float x0, y0, x1, y1;  // local pixel corners (top-left, bottom-right)
   float u0, v0, u1, v1;  // atlas UVs
 };
 
-// Lay out `text` at baseline pen (x, y), pixel space, y-down. Zero-size glyphs
-// advance without a quad; chars >= 128 or absent from the map are skipped.
-inline std::vector<TextQuad> layoutText(const GlyphMap& glyphs,
-                                        std::string_view text, float x, float y,
-                                        float scale) {
+// Replacement lookup for a codepoint absent from `glyphs`. Return a Glyph to
+// substitute, or nullptr to skip. Empty hook -> skip (current behavior).
+using MissingGlyphFn = std::function<const Glyph*(char32_t)>;
+
+// Lay out `text` in LOCAL coordinates: pen starts at (0,0), baseline at y=0,
+// advancing +x, y-down. Surface-agnostic; the caller applies placement and
+// projection. Zero-size glyphs advance without a quad. Bytes are treated as
+// ASCII codepoints for now (>=128 -> missing-glyph hook).
+inline std::vector<TextQuad> layoutText(const GlyphStore& glyphs,
+                                        std::string_view text,
+                                        const MissingGlyphFn& onMissing = {}) {
   std::vector<TextQuad> quads;
-  float penX = x;
+  float penX = 0.0f;
   for (char ch : text) {
-    const unsigned char uc = static_cast<unsigned char>(ch);
-    if (uc >= 128) continue;
-    const Glyph& g = glyphs[uc];
-    if (g.size.x > 0.0f && g.size.y > 0.0f) {
+    const char32_t cp = static_cast<unsigned char>(ch);
+    const Glyph* g = nullptr;
+    if (auto it = glyphs.find(cp); it != glyphs.end()) {
+      g = &it->second;
+    } else if (onMissing) {
+      g = onMissing(cp);
+    }
+    if (!g) continue;  // missing and no substitute: skip
+    if (g->size.x > 0.0f && g->size.y > 0.0f) {
       TextQuad q;
-      q.x0 = penX + g.bearing.x * scale;
-      q.y0 = y - g.bearing.y * scale;
-      q.x1 = q.x0 + g.size.x * scale;
-      q.y1 = q.y0 + g.size.y * scale;
-      q.u0 = g.uvMin.x;
-      q.v0 = g.uvMin.y;
-      q.u1 = g.uvMax.x;
-      q.v1 = g.uvMax.y;
+      q.x0 = penX + g->bearing.x;
+      q.y0 = -g->bearing.y;
+      q.x1 = q.x0 + g->size.x;
+      q.y1 = q.y0 + g->size.y;
+      q.u0 = g->uvMin.x;
+      q.v0 = g->uvMin.y;
+      q.u1 = g->uvMax.x;
+      q.v1 = g->uvMax.y;
       quads.push_back(q);
     }
-    penX += g.advance * scale;
+    penX += g->advance;
   }
   return quads;
 }
