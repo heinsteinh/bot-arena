@@ -81,9 +81,9 @@ void ParallaxLightDemoGame::onRender(engine::Renderer& renderer, int width,
     lights.push_back(pl);
   }
   renderer.setPointLights(lights);
-  // Directional nearly straight down -> flat fill, so the point light is the
-  // unmistakable self-shadow caster.
-  renderer.setLightDirection(glm::normalize(glm::vec3(0.1f, 1.0f, 0.15f)));
+  // Directional grazes near-horizontal so the up-facing floor gets little of
+  // it (low ndl) -> the orbiting point lights stay the dominant casters.
+  renderer.setLightDirection(glm::normalize(glm::vec3(0.9f, 0.12f, 0.25f)));
 
   const engine::MeshHandle cube = renderer.unitCubeMesh();
   engine::MeshRenderer meshes(renderer.queue(), renderer.registry(), m_camera);

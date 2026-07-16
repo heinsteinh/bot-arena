@@ -77,8 +77,8 @@ void NormalMapDemoGame::onRender(engine::Renderer& renderer, int width,
   // parallax self-shadow. BOTARENA_LIGHT freezes two raking angles.
   float a = m_time * 0.5f;
   if (m_screenshot) a = m_lightPreset == 1 ? 2.3f : 0.7f;
-  renderer.setLightDirection(
-      glm::normalize(glm::vec3(std::cos(a), 0.30f, std::sin(a) * 0.4f + 0.7f)));
+  renderer.setLightDirection(glm::normalize(
+      glm::vec3(std::cos(a), 0.28f, std::sin(a) * 0.35f + 0.32f)));
   std::vector<engine::PointLight> lights;
   engine::PointLight fill;
   fill.positionRadius = glm::vec4(0.0f, 2.0f, 6.0f, 24.0f);

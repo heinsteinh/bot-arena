@@ -37,8 +37,7 @@ class RenderBackend {
   virtual void setPointLights(int count, const PointLight* lights) = 0;
   // Fullscreen deferred shade: read the G-buffer + shadow map, write HDR.
   virtual void lightingPass(uint32_t gAlbedo, uint32_t gNormal,
-                            uint32_t gWorldPos, uint32_t shadowMap,
-                            uint32_t gShadow) = 0;
+                            uint32_t gWorldPos, uint32_t gShadow) = 0;
   // Render a procedural sky into the 6 faces of an environment cubemap.
   virtual void renderEnvironment(uint32_t cubemap, int size,
                                  const glm::vec3& sunDir) = 0;
@@ -74,8 +73,8 @@ class RenderBackend {
                              const glm::mat4& lightViewProj, Arena& scratch,
                              const ResourceRegistry& registry) = 0;
   // Upload the light block (binding 1) and remember the shadow map texture.
-  virtual void setLight(const LightUniforms& light,
-                        uint32_t shadowMapTexture) = 0;
+  virtual void setLight(const LightUniforms& light, uint32_t cascade0,
+                        uint32_t cascade1, uint32_t cascade2) = 0;
   // Draw a tonemapped quad sampling `sourceColorTexture` into the bound target,
   // covering the NDC rectangle {x0,y0,x1,y1}.
   // Add bloom to the HDR scene and tonemap into the bound target (fullscreen).

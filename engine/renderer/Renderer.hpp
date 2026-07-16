@@ -106,8 +106,7 @@ class Renderer {
   RenderPass m_compositePass;
   Ref<Framebuffer> m_gbufferFBO;
   RenderPass m_gbufferPass;
-  Ref<Framebuffer> m_shadowFBO;
-  RenderPass m_shadowPass;
+  Ref<Framebuffer> m_shadowFBO[3];
   glm::vec3 m_lightDir{glm::normalize(glm::vec3(0.4f, 0.8f, 0.3f))};
   LightUniforms m_light;
   static constexpr uint32_t kShadowSize = 2048;
@@ -125,6 +124,7 @@ class Renderer {
   Ref<Framebuffer> m_bloomFBO[2];
   static constexpr int kBloomBlurPasses = 5;
   int m_pointLightCount = 0;
+  std::vector<PointLight> m_pointLights;
   int m_width = 0;
   int m_height = 0;
   MeshHandle m_cubeMesh = 0;

@@ -23,7 +23,7 @@ class OpenGLBackend final : public RenderBackend {
                        const ResourceRegistry& registry) override;
   void setPointLights(int count, const PointLight* lights) override;
   void lightingPass(uint32_t gAlbedo, uint32_t gNormal, uint32_t gWorldPos,
-                    uint32_t shadowMap, uint32_t gShadow) override;
+                    uint32_t gShadow) override;
   void renderEnvironment(uint32_t cubemap, int size,
                          const glm::vec3& sunDir) override;
   void setEnvironment(uint32_t envCubemap) override;
@@ -43,7 +43,8 @@ class OpenGLBackend final : public RenderBackend {
   void executeShadow(const std::vector<RenderEntry>& entries,
                      const glm::mat4& lightViewProj, Arena& scratch,
                      const ResourceRegistry& registry) override;
-  void setLight(const LightUniforms& light, uint32_t shadowMapTexture) override;
+  void setLight(const LightUniforms& light, uint32_t cascade0,
+                uint32_t cascade1, uint32_t cascade2) override;
   void compositeBloom(uint32_t sceneTex, uint32_t bloomTex) override;
   void readPixels(int x, int y, int width, int height, void* out) override;
   void drawTextBatch(FontBackend backend, uint32_t atlasTextureId,
@@ -78,7 +79,7 @@ class OpenGLBackend final : public RenderBackend {
 
   unsigned int m_shadowShader = 0;
   Ref<UniformBuffer> m_lightUBO;
-  unsigned int m_shadowMap = 0;
+  unsigned int m_cascadeMap[3] = {0, 0, 0};
 
   unsigned int m_lightingShader = 0;
   Ref<UniformBuffer> m_pointLightUBO;

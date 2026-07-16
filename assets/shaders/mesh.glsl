@@ -45,7 +45,8 @@ layout(std140, binding = 0) uniform Camera {
 };
 
 layout(std140, binding = 1) uniform Light {
-    mat4 u_lightViewProj;
+    mat4 u_cascadeViewProj[3];
+    vec4 u_cascadeSplits;
     vec4 u_lightDir;
 };
 
