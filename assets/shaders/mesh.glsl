@@ -44,6 +44,11 @@ layout(std140, binding = 0) uniform Camera {
     vec4 u_cameraPos;
 };
 
+layout(std140, binding = 1) uniform Light {
+    mat4 u_lightViewProj;
+    vec4 u_lightDir;
+};
+
 uniform vec4 u_baseColor;
 uniform float u_metallic;
 uniform float u_roughness;
@@ -58,6 +63,7 @@ uniform float u_heightScale;
 layout(location = 0) out vec4 gAlbedo;
 layout(location = 1) out vec4 gNormal;
 layout(location = 2) out vec4 gWorldPos;
+layout(location = 3) out vec4 gShadow;
 
 // Parallax Occlusion Mapping: steep ray-march (layers scaled by view angle)
 // plus one interpolation between the last two layers. Height map: white =
@@ -85,15 +91,39 @@ vec2 parallaxOcclusion(vec2 uv, vec3 viewT) {
     return mix(curUV, prevUV, w);
 }
 
+// Soft parallax self-shadow: march from the parallax UV toward the light,
+// accumulating how far blockers rise above the ray.
+float parallaxShadow(vec2 uv, vec3 lightT) {
+    if (lightT.z <= 0.0) return 1.0;
+    const float n = 16.0;
+    const float strength = 24.0;
+    float startDepth = 1.0 - texture(u_heightMap, uv).r;
+    float layerDepth = startDepth / n;
+    vec2 dUV = (lightT.xy / lightT.z) * u_heightScale / n;
+    float curDepth = startDepth - layerDepth;
+    vec2 curUV = uv + dUV;
+    float occ = 0.0;
+    while (curDepth > 0.0) {
+        float d = 1.0 - texture(u_heightMap, curUV).r;
+        if (d < curDepth) occ += (curDepth - d);
+        curDepth -= layerDepth;
+        curUV += dUV;
+    }
+    return 1.0 - clamp(occ * strength, 0.0, 1.0);
+}
+
 void main() {
     vec3 Ngeo = normalize(v_worldNormal);
     vec3 T = normalize(v_worldTangent - dot(v_worldTangent, Ngeo) * Ngeo);
     mat3 TBN = mat3(T, cross(Ngeo, T), Ngeo);
 
     vec2 uv = v_uv;
+    float selfShadow = 1.0;
     if (u_hasHeight == 1) {
         vec3 viewT = normalize(transpose(TBN) * (u_cameraPos.xyz - v_worldPos));
         uv = parallaxOcclusion(v_uv, viewT);
+        vec3 lightT = normalize(transpose(TBN) * normalize(u_lightDir.xyz));
+        selfShadow = parallaxShadow(uv, lightT);
     }
 
     vec3 albedo = u_hasAlbedo == 1
@@ -108,4 +138,5 @@ void main() {
     }
     gNormal = vec4(N, u_roughness);
     gWorldPos = vec4(v_worldPos, 1.0);
+    gShadow = vec4(selfShadow, 0.0, 0.0, 1.0);
 }

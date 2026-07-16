@@ -23,7 +23,7 @@ class OpenGLBackend final : public RenderBackend {
                        const ResourceRegistry& registry) override;
   void setPointLights(int count, const PointLight* lights) override;
   void lightingPass(uint32_t gAlbedo, uint32_t gNormal, uint32_t gWorldPos,
-                    uint32_t shadowMap) override;
+                    uint32_t shadowMap, uint32_t gShadow) override;
   void renderEnvironment(uint32_t cubemap, int size,
                          const glm::vec3& sunDir) override;
   void setEnvironment(uint32_t envCubemap) override;

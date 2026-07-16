@@ -31,9 +31,11 @@ Renderer::Renderer(JobSystem& jobs)
   m_compositePass = RenderPass{nullptr, {0.0f, 0.0f, 0.0f, 1.0f}, false};
 
   FramebufferSpec gbufferSpec;
-  gbufferSpec.colorFormats = {FramebufferFormat::RGBA8,
-                              FramebufferFormat::RGBA16F,
-                              FramebufferFormat::RGBA16F};
+  gbufferSpec.colorFormats = {
+      FramebufferFormat::RGBA8,    // gAlbedo (rgb + metallic)
+      FramebufferFormat::RGBA16F,  // gNormal (rgb + roughness)
+      FramebufferFormat::RGBA16F,  // gWorldPos (xyz + geometry mask)
+      FramebufferFormat::RGBA8};   // gShadow (parallax self-shadow)
   m_gbufferFBO = Framebuffer::Create(gbufferSpec);
   m_gbufferPass = RenderPass{m_gbufferFBO, {0.0f, 0.0f, 0.0f, 0.0f}, true};
 
@@ -253,7 +255,8 @@ void Renderer::endFrame() {
                        false, m_width, m_height);
   m_backend->lightingPass(
       m_gbufferFBO->colorAttachment(0), m_gbufferFBO->colorAttachment(1),
-      m_gbufferFBO->colorAttachment(2), m_shadowFBO->depthAttachment());
+      m_gbufferFBO->colorAttachment(2), m_shadowFBO->depthAttachment(),
+      m_gbufferFBO->colorAttachment(3));
 
   // Emissive point-light billboards -> HDR scene (additive), before bloom.
   m_backend->drawLightBillboards(m_pointLightCount,

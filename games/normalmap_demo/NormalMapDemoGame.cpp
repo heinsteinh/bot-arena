@@ -51,7 +51,7 @@ void NormalMapDemoGame::ensureResources(engine::Renderer& renderer) {
       engine::loadTexture(tex + "brick_h.png");
   engine::Material parallax = mapped;
   parallax.heightMap = brickH;
-  parallax.heightScale = 0.05f;
+  parallax.heightScale = 0.08f;
   m_parallaxMat = renderer.registry().registerMaterial(parallax);
   m_ready = true;
 }
@@ -73,17 +73,18 @@ void NormalMapDemoGame::onRender(engine::Renderer& renderer, int width,
   m_camera.setPerspective(55.0f, aspect, 0.1f, 100.0f);
   renderer.setCamera(m_camera);
 
-  // Moving point light grazing the walls; frozen at a raking angle for the
-  // shot.
-  float a = m_time * 0.8f;
-  if (m_screenshot) a = m_lightPreset == 1 ? 2.2f : 0.9f;  // two raking angles
+  // Directional key grazes the walls -> drives both the PCF shadow map and the
+  // parallax self-shadow. BOTARENA_LIGHT freezes two raking angles.
+  float a = m_time * 0.5f;
+  if (m_screenshot) a = m_lightPreset == 1 ? 2.3f : 0.7f;
+  renderer.setLightDirection(
+      glm::normalize(glm::vec3(std::cos(a), 0.30f, std::sin(a) * 0.4f + 0.7f)));
   std::vector<engine::PointLight> lights;
-  engine::PointLight pl;
-  pl.positionRadius = glm::vec4(std::cos(a) * 3.5f, 2.2f, 2.6f, 22.0f);
-  pl.color = glm::vec4(1.0f, 0.95f, 0.9f, 4.0f);
-  lights.push_back(pl);
+  engine::PointLight fill;
+  fill.positionRadius = glm::vec4(0.0f, 2.0f, 6.0f, 24.0f);
+  fill.color = glm::vec4(0.5f, 0.55f, 0.65f, 0.8f);  // dim, so the key reads
+  lights.push_back(fill);
   renderer.setPointLights(lights);
-  renderer.setLightDirection({0.2f, 0.9f, 0.4f});
 
   const engine::MeshHandle cube = renderer.unitCubeMesh();
   engine::MeshRenderer meshes(renderer.queue(), renderer.registry(), m_camera);
