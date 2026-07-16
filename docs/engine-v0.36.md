@@ -76,15 +76,18 @@ mesh + Material{..., heightMap}
 ## `parallax_light_demo`
 
 `parallaxlightdemo::ParallaxLightDemoGame` (`parallax_light_demo_game` target) shows a
-single parallax brick floor (scaled cube, `brick_d.jpg` + `brick_n.jpg` +
-`brick_h.png`, `heightScale = 0.04`) with one bright point light orbiting **low** and
-close over it. The mortar self-shadows stretch away from the light and sweep as it
-orbits — the defining proof this is a *point-light* self-shadow, not the directional
-one. The engine draws the point light as an emissive billboard automatically, so its
-position is visible. The directional light is aimed nearly straight down (flat fill),
-so the point light is the unmistakable caster. `BOTARENA_LIGHT=0|1|2` freezes the
-orbiting light at three positions for before/after screenshots; the camera looks down
-at an oblique angle. `brick_h.png` is the v0.35 asset — no new texture.
+parallax brick floor (scaled cube, `brick_d.jpg` + `brick_n.jpg` + `brick_h.png`,
+`heightScale = 0.04`) with **three distinctly-colored point lights** (warm orange,
+cool blue, green) orbiting **low** and close, 120° apart — so all three point-light
+channels (`gShadow.g/b/a`) are exercised at once. Each light casts its own parallax
+self-shadow, so a crevice shadowed from one light but lit by another shows a colored
+self-shadow; the shadows sweep as the cluster orbits — the defining proof this is a
+*point-light* self-shadow, not the directional one. The engine draws each point light
+as an emissive billboard automatically, so their positions are visible. The
+directional light is aimed nearly straight down (flat fill), so the point lights are
+the unmistakable casters. `BOTARENA_LIGHT=0|1|2` freezes the cluster at three
+orientations for before/after screenshots; the camera looks down at an oblique angle.
+`brick_h.png` is the v0.35 asset — no new texture.
 
 ## Testing
 
