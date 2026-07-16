@@ -187,6 +187,7 @@ add_executable(bot_arena_tests
     tests/test_text_style.cpp
     tests/test_font_manager.cpp
     tests/test_text_batch.cpp
+    tests/test_scene.cpp
 
     engine/core/Arena.cpp
     engine/particles/ParticleSystem.cpp
