@@ -155,6 +155,12 @@ add_executable(csm_demo_game
 )
 target_link_libraries(csm_demo_game PRIVATE bot_arena_engine)
 
+add_executable(scene_demo_game
+    games/scene_demo/main.cpp
+    games/scene_demo/SceneDemoGame.cpp
+)
+target_link_libraries(scene_demo_game PRIVATE bot_arena_engine)
+
 enable_testing()
 
 add_executable(bot_arena_tests
