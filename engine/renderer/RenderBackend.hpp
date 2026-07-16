@@ -37,7 +37,8 @@ class RenderBackend {
   virtual void setPointLights(int count, const PointLight* lights) = 0;
   // Fullscreen deferred shade: read the G-buffer + shadow map, write HDR.
   virtual void lightingPass(uint32_t gAlbedo, uint32_t gNormal,
-                            uint32_t gWorldPos, uint32_t shadowMap) = 0;
+                            uint32_t gWorldPos, uint32_t shadowMap,
+                            uint32_t gShadow) = 0;
   // Render a procedural sky into the 6 faces of an environment cubemap.
   virtual void renderEnvironment(uint32_t cubemap, int size,
                                  const glm::vec3& sunDir) = 0;

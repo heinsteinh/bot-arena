@@ -230,6 +230,7 @@ unsigned int createLightingProgram() {
     uniform sampler2D u_gAlbedo;
     uniform sampler2D u_gNormal;
     uniform sampler2D u_gWorldPos;
+    uniform sampler2D u_gShadow;
     uniform sampler2DShadow u_shadowMap;
     uniform samplerCube u_envMap;
     uniform samplerCube u_irradiance;
@@ -344,8 +345,9 @@ unsigned int createLightingProgram() {
       // Directional light (shadowed).
       vec3 L = normalize(u_lightDir.xyz);
       float shadow = shadowPCF(worldPos, max(dot(N, L), 0.0));
+      float pShadow = texture(u_gShadow, v_uv).r;   // parallax self-shadow
       color += brdf(N, V, L, albedo, metallic, rough, F0, vec3(3.0)) *
-               (1.0 - shadow);
+               (1.0 - shadow) * pShadow;
 
       // Point lights.
       for (int i = 0; i < u_pointCount; ++i) {
@@ -1300,6 +1302,14 @@ void OpenGLBackend::executeGeometry(const std::vector<RenderEntry>& entries,
       } else {
         shader->setInt("u_hasNormal", 0);
       }
+      if (mat.heightMap) {
+        mat.heightMap->bind(2);
+        shader->setInt("u_heightMap", 2);
+        shader->setInt("u_hasHeight", 1);
+        shader->setFloat("u_heightScale", mat.heightScale);
+      } else {
+        shader->setInt("u_hasHeight", 0);
+      }
       boundMaterial = cmd.material;
     }
     shader->setMat4("u_transform", cmd.transform);
@@ -1320,7 +1330,8 @@ void OpenGLBackend::setPointLights(int count, const PointLight* lights) {
 }
 
 void OpenGLBackend::lightingPass(uint32_t gAlbedo, uint32_t gNormal,
-                                 uint32_t gWorldPos, uint32_t shadowMap) {
+                                 uint32_t gWorldPos, uint32_t shadowMap,
+                                 uint32_t gShadow) {
   glDisable(GL_DEPTH_TEST);
   glUseProgram(m_lightingShader);
   glBindTextureUnit(0, gAlbedo);
@@ -1332,6 +1343,7 @@ void OpenGLBackend::lightingPass(uint32_t gAlbedo, uint32_t gNormal,
   glBindTextureUnit(6, m_prefilterMap);
   glBindTextureUnit(7, m_brdfLUT);
   glBindTextureUnit(8, m_ao);
+  glBindTextureUnit(9, gShadow);
   glUniform1i(glGetUniformLocation(m_lightingShader, "u_gAlbedo"), 0);
   glUniform1i(glGetUniformLocation(m_lightingShader, "u_gNormal"), 1);
   glUniform1i(glGetUniformLocation(m_lightingShader, "u_gWorldPos"), 2);
@@ -1341,6 +1353,7 @@ void OpenGLBackend::lightingPass(uint32_t gAlbedo, uint32_t gNormal,
   glUniform1i(glGetUniformLocation(m_lightingShader, "u_prefilter"), 6);
   glUniform1i(glGetUniformLocation(m_lightingShader, "u_brdfLUT"), 7);
   glUniform1i(glGetUniformLocation(m_lightingShader, "u_ao"), 8);
+  glUniform1i(glGetUniformLocation(m_lightingShader, "u_gShadow"), 9);
   glUniform1i(glGetUniformLocation(m_lightingShader, "u_prefilterMips"),
               m_prefilterMips);
   glBindVertexArray(m_quadVao);
