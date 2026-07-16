@@ -60,6 +60,8 @@ add_library(bot_arena_engine STATIC
     engine/renderer/ResourceRegistry.cpp
     engine/renderer/MeshRenderer.cpp
     engine/renderer/CommandBufferPool.cpp
+
+    engine/scene/Scene.cpp
 )
 
 target_include_directories(bot_arena_engine
@@ -198,6 +200,7 @@ add_executable(bot_arena_tests
     engine/renderer/CommandBufferPool.cpp
     engine/renderer/text/FontManager.cpp
     engine/renderer/text/TextRenderer.cpp
+    engine/scene/Scene.cpp
 )
 
 target_include_directories(bot_arena_tests
@@ -205,7 +208,7 @@ target_include_directories(bot_arena_tests
 )
 
 target_link_libraries(bot_arena_tests
-    PRIVATE glm::glm Catch2::Catch2WithMain Threads::Threads spdlog::spdlog
+    PRIVATE glm::glm EnTT::EnTT Catch2::Catch2WithMain Threads::Threads spdlog::spdlog
 )
 
 add_test(NAME bot_arena_tests COMMAND bot_arena_tests)
