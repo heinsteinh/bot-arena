@@ -20,6 +20,8 @@ struct Material {
   ShaderHandle shader = 0;
   Ref<Texture2D> albedo = nullptr;
   Ref<Texture2D> normalMap = nullptr;  // null -> use the vertex normal
+  Ref<Texture2D> heightMap = nullptr;  // null -> no parallax
+  float heightScale = 0.05f;           // UV-space displacement depth
 };
 
 class ResourceRegistry {

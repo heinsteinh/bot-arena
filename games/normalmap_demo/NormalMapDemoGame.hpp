@@ -30,6 +30,7 @@ class NormalMapDemoGame final : public engine::Layer {
   bool m_ready = false;
   engine::MaterialHandle m_flatMat = 0;
   engine::MaterialHandle m_mappedMat = 0;
+  engine::MaterialHandle m_parallaxMat = 0;
   engine::FontHandle m_font;
 };
 

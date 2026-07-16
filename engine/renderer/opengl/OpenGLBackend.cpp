@@ -1300,6 +1300,14 @@ void OpenGLBackend::executeGeometry(const std::vector<RenderEntry>& entries,
       } else {
         shader->setInt("u_hasNormal", 0);
       }
+      if (mat.heightMap) {
+        mat.heightMap->bind(2);
+        shader->setInt("u_heightMap", 2);
+        shader->setInt("u_hasHeight", 1);
+        shader->setFloat("u_heightScale", mat.heightScale);
+      } else {
+        shader->setInt("u_hasHeight", 0);
+      }
       boundMaterial = cmd.material;
     }
     shader->setMat4("u_transform", cmd.transform);

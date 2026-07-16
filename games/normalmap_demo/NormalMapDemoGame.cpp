@@ -22,7 +22,7 @@ void NormalMapDemoGame::onAttach() {
   if (const char* l = std::getenv("BOTARENA_LIGHT"))
     m_lightPreset = std::atoi(l);
   m_camera.setPerspective(55.0f, 16.0f / 9.0f, 0.1f, 100.0f);
-  m_camera.lookAt({0.0f, 1.5f, 7.0f}, {0.0f, 1.5f, 0.0f});
+  m_camera.lookAt({2.6f, 2.0f, 10.0f}, {0.0f, 1.6f, 0.0f});
 }
 
 void NormalMapDemoGame::onUpdate(float dt) { m_time += dt; }
@@ -46,6 +46,13 @@ void NormalMapDemoGame::ensureResources(engine::Renderer& renderer) {
   engine::Material mapped = flat;
   mapped.normalMap = brickN;
   m_mappedMat = renderer.registry().registerMaterial(mapped);
+
+  engine::Ref<engine::Texture2D> brickH =
+      engine::loadTexture(tex + "brick_h.png");
+  engine::Material parallax = mapped;
+  parallax.heightMap = brickH;
+  parallax.heightScale = 0.05f;
+  m_parallaxMat = renderer.registry().registerMaterial(parallax);
   m_ready = true;
 }
 
@@ -85,8 +92,9 @@ void NormalMapDemoGame::onRender(engine::Renderer& renderer, int width,
     m = glm::scale(m, {2.0f, 3.0f, 0.2f});
     meshes.submit(cube, mat, m);
   };
-  wall(-2.4f, m_flatMat);
-  wall(2.4f, m_mappedMat);
+  wall(-4.4f, m_flatMat);
+  wall(0.0f, m_mappedMat);
+  wall(4.4f, m_parallaxMat);
 
   // Billboard labels over each wall.
   if (m_font) {
@@ -96,11 +104,14 @@ void NormalMapDemoGame::onRender(engine::Renderer& renderer, int width,
     st.outlineWidthPx = 3.0f;
     renderer.drawText(
         m_font, "flat",
-        engine::TextPlacement::cameraBillboard({-2.4f, 3.4f, 0.2f}, 0.006f),
+        engine::TextPlacement::cameraBillboard({-4.4f, 3.4f, 0.2f}, 0.006f),
         st);
     renderer.drawText(
-        m_font, "normal-mapped",
-        engine::TextPlacement::cameraBillboard({2.4f, 3.4f, 0.2f}, 0.006f), st);
+        m_font, "normal",
+        engine::TextPlacement::cameraBillboard({0.0f, 3.4f, 0.2f}, 0.006f), st);
+    renderer.drawText(
+        m_font, "parallax",
+        engine::TextPlacement::cameraBillboard({4.4f, 3.4f, 0.2f}, 0.006f), st);
   }
 }
 
