@@ -147,6 +147,12 @@ add_executable(parallax_light_demo_game
 )
 target_link_libraries(parallax_light_demo_game PRIVATE bot_arena_engine)
 
+add_executable(csm_demo_game
+    games/csm_demo/main.cpp
+    games/csm_demo/CsmDemoGame.cpp
+)
+target_link_libraries(csm_demo_game PRIVATE bot_arena_engine)
+
 enable_testing()
 
 add_executable(bot_arena_tests
