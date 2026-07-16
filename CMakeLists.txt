@@ -135,6 +135,12 @@ add_executable(billboard_demo_game
 )
 target_link_libraries(billboard_demo_game PRIVATE bot_arena_engine)
 
+add_executable(normalmap_demo_game
+    games/normalmap_demo/main.cpp
+    games/normalmap_demo/NormalMapDemoGame.cpp
+)
+target_link_libraries(normalmap_demo_game PRIVATE bot_arena_engine)
+
 enable_testing()
 
 add_executable(bot_arena_tests

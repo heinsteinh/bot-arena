@@ -113,12 +113,28 @@ void Renderer::initBuiltins() {
     idx[b + 5] = o + 0;
   }
 
+  // Append a per-face tangent (the +U direction) -> 11 floats/vertex.
+  const float faceTan[6][3] = {{0, 0, 1}, {0, 0, -1}, {1, 0, 0},
+                               {1, 0, 0}, {1, 0, 0},  {-1, 0, 0}};
+  float vt[24 * 11];
+  for (int f = 0; f < 6; ++f) {
+    for (int c = 0; c < 4; ++c) {
+      const int s = (f * 4 + c) * 8;
+      const int d = (f * 4 + c) * 11;
+      for (int k = 0; k < 8; ++k) vt[d + k] = v[s + k];
+      vt[d + 8] = faceTan[f][0];
+      vt[d + 9] = faceTan[f][1];
+      vt[d + 10] = faceTan[f][2];
+    }
+  }
+
   auto va = VertexArray::Create();
-  auto vb = VertexBuffer::Create(v, sizeof(v));
+  auto vb = VertexBuffer::Create(vt, sizeof(vt));
   vb->setLayout({
       {ShaderDataType::Float3, "a_position"},
       {ShaderDataType::Float3, "a_normal"},
       {ShaderDataType::Float2, "a_uv"},
+      {ShaderDataType::Float3, "a_tangent"},
   });
   va->addVertexBuffer(vb);
   va->setIndexBuffer(IndexBuffer::Create(idx, 36));

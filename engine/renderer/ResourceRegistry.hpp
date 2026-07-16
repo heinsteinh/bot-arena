@@ -19,6 +19,7 @@ struct Material {
   float roughness = 0.5f;
   ShaderHandle shader = 0;
   Ref<Texture2D> albedo = nullptr;
+  Ref<Texture2D> normalMap = nullptr;  // null -> use the vertex normal
 };
 
 class ResourceRegistry {

@@ -30,8 +30,8 @@ glm::vec4 diffuseColor(const aiScene* scene, const aiMesh* mesh) {
 }
 
 MeshHandle buildMesh(const aiMesh* mesh, ResourceRegistry& registry) {
-  std::vector<float> verts;  // interleaved px,py,pz,nx,ny,nz,u,v
-  verts.reserve(mesh->mNumVertices * 8);
+  std::vector<float> verts;  // interleaved px,py,pz,nx,ny,nz,u,v,tx,ty,tz
+  verts.reserve(mesh->mNumVertices * 11);
   for (unsigned i = 0; i < mesh->mNumVertices; ++i) {
     const aiVector3D& p = mesh->mVertices[i];
     const aiVector3D n =
@@ -39,7 +39,10 @@ MeshHandle buildMesh(const aiMesh* mesh, ResourceRegistry& registry) {
     const aiVector3D uv = mesh->mTextureCoords[0]
                               ? mesh->mTextureCoords[0][i]
                               : aiVector3D(0.0f, 0.0f, 0.0f);
-    verts.insert(verts.end(), {p.x, p.y, p.z, n.x, n.y, n.z, uv.x, uv.y});
+    const aiVector3D t =
+        mesh->mTangents ? mesh->mTangents[i] : aiVector3D(1.0f, 0.0f, 0.0f);
+    verts.insert(verts.end(),
+                 {p.x, p.y, p.z, n.x, n.y, n.z, uv.x, uv.y, t.x, t.y, t.z});
   }
   std::vector<uint32_t> indices;
   for (unsigned f = 0; f < mesh->mNumFaces; ++f) {
@@ -56,6 +59,7 @@ MeshHandle buildMesh(const aiMesh* mesh, ResourceRegistry& registry) {
       {ShaderDataType::Float3, "a_position"},
       {ShaderDataType::Float3, "a_normal"},
       {ShaderDataType::Float2, "a_uv"},
+      {ShaderDataType::Float3, "a_tangent"},
   });
   va->addVertexBuffer(vb);
   va->setIndexBuffer(IndexBuffer::Create(
@@ -69,7 +73,7 @@ Model loadModel(const std::string& path, ResourceRegistry& registry,
   Assimp::Importer importer;
   const aiScene* scene = importer.ReadFile(
       path, aiProcess_Triangulate | aiProcess_GenSmoothNormals |
-                aiProcess_JoinIdenticalVertices |
+                aiProcess_CalcTangentSpace | aiProcess_JoinIdenticalVertices |
                 aiProcess_PreTransformVertices);
   if (!scene || (scene->mFlags & AI_SCENE_FLAGS_INCOMPLETE) ||
       !scene->mRootNode) {
