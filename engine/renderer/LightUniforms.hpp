@@ -56,11 +56,16 @@ inline glm::mat4 makeCascadeViewProj(const glm::vec3& lightDir,
   float radius = 0.0f;
   for (int i = 0; i < 8; ++i)
     radius = glm::max(radius, glm::length(corners[i] - center));
+  // lightDir points TOWARD the light, so the shadow eye sits on the light side
+  // (center + dir), looking down at the slice. up guards against an overhead
+  // sun.
   const glm::vec3 dir = glm::normalize(lightDir);
+  const glm::vec3 up = glm::abs(dir.y) > 0.99f ? glm::vec3(0.0f, 0.0f, 1.0f)
+                                               : glm::vec3(0, 1, 0);
   const glm::mat4 view =
-      glm::lookAt(center - dir * radius, center, glm::vec3(0.0f, 1.0f, 0.0f));
+      glm::lookAt(center + dir * (radius * 2.0f), center, up);
   const glm::mat4 proj =
-      glm::ortho(-radius, radius, -radius, radius, 0.0f, 2.0f * radius);
+      glm::ortho(-radius, radius, -radius, radius, 0.1f, radius * 4.0f);
   return proj * view;
 }
 
