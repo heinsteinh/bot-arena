@@ -1,12 +1,10 @@
 #include "games/scene_demo/SceneDemoGame.hpp"
 
 #include <glm/glm.hpp>
-#include <glm/gtc/matrix_transform.hpp>
 #include <string>
 
 #include "engine/renderer/MatrixCamera.hpp"
 #include "engine/renderer/MeshRenderer.hpp"
-#include "engine/renderer/PointLight.hpp"
 #include "engine/renderer/Renderer.hpp"
 #include "engine/renderer/text/FontDesc.hpp"
 #include "engine/renderer/text/TextPlacement.hpp"
