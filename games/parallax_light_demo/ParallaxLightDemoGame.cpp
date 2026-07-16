@@ -60,17 +60,26 @@ void ParallaxLightDemoGame::onRender(engine::Renderer& renderer, int width,
   m_camera.setPerspective(55.0f, aspect, 0.1f, 100.0f);
   renderer.setCamera(m_camera);
 
-  // One point light orbiting LOW over the floor -> sweeping mortar shadows.
+  // Three distinctly-colored point lights orbiting LOW, 120 apart: each casts
+  // its own parallax self-shadow (gShadow.g/b/a), so a crevice shadowed from
+  // one light but lit by another shows a colored self-shadow.
   float a = m_time * 0.7f;
   if (m_screenshot) {
     a = m_lightPreset == 2 ? 3.9f : (m_lightPreset == 1 ? 2.2f : 0.4f);
   }
+  const glm::vec3 lightColors[3] = {{1.0f, 0.55f, 0.35f},   // warm orange
+                                    {0.35f, 0.7f, 1.0f},    // cool blue
+                                    {0.45f, 1.0f, 0.55f}};  // green
+  const float twoPi = 6.2831853f;
   std::vector<engine::PointLight> lights;
-  engine::PointLight key;
-  key.positionRadius =
-      glm::vec4(std::cos(a) * 2.4f, 0.9f, std::sin(a) * 2.4f, 14.0f);
-  key.color = glm::vec4(1.0f, 0.88f, 0.7f, 6.0f);  // bright, warm
-  lights.push_back(key);
+  for (int i = 0; i < 3; ++i) {
+    const float ai = a + twoPi * static_cast<float>(i) / 3.0f;
+    engine::PointLight pl;
+    pl.positionRadius =
+        glm::vec4(std::cos(ai) * 2.4f, 0.9f, std::sin(ai) * 2.4f, 12.0f);
+    pl.color = glm::vec4(lightColors[i], 4.5f);
+    lights.push_back(pl);
+  }
   renderer.setPointLights(lights);
   // Directional nearly straight down -> flat fill, so the point light is the
   // unmistakable self-shadow caster.
