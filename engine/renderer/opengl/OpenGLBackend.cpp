@@ -1293,6 +1293,13 @@ void OpenGLBackend::executeGeometry(const std::vector<RenderEntry>& entries,
       } else {
         shader->setInt("u_hasAlbedo", 0);
       }
+      if (mat.normalMap) {
+        mat.normalMap->bind(1);
+        shader->setInt("u_normalMap", 1);
+        shader->setInt("u_hasNormal", 1);
+      } else {
+        shader->setInt("u_hasNormal", 0);
+      }
       boundMaterial = cmd.material;
     }
     shader->setMat4("u_transform", cmd.transform);
