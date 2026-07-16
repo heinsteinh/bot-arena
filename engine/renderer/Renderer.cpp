@@ -6,6 +6,7 @@
 #include <stb_image_write.h>
 
 #include <algorithm>
+#include <cmath>
 #include <vector>
 
 #include "engine/core/AssetPath.hpp"
@@ -224,6 +225,21 @@ void Renderer::endFrame() {
                      return a.sortKey < b.sortKey;
                    });
 
+  // Nearest-N: sort point lights by camera distance so indices 0..2 (which get
+  // parallax self-shadows) are the three nearest the camera.
+  {
+    std::vector<PointLight> sorted = m_pointLights;
+    const glm::vec3 camPos = glm::vec3(m_camera.cameraPosition);
+    std::stable_sort(
+        sorted.begin(), sorted.end(),
+        [&](const PointLight& a, const PointLight& b) {
+          const glm::vec3 da = glm::vec3(a.positionRadius) - camPos;
+          const glm::vec3 db = glm::vec3(b.positionRadius) - camPos;
+          return glm::dot(da, da) < glm::dot(db, db);
+        });
+    m_backend->setPointLights(static_cast<int>(sorted.size()), sorted.data());
+  }
+
   // Shadow pass -> depth-only shadow map (light POV).
   const glm::mat4 lightViewProj =
       makeLightViewProj(m_lightDir, {0.0f, 0.5f, 0.0f}, 16.0f, 0.1f, 64.0f);
@@ -302,9 +318,9 @@ void Renderer::endFrame() {
 }
 
 void Renderer::setPointLights(const std::vector<PointLight>& lights) {
+  m_pointLights = lights;
   const int count = static_cast<int>(lights.size());
   m_pointLightCount = count < 32 ? count : 32;
-  m_backend->setPointLights(count, lights.data());
 }
 
 void Renderer::saveScreenshot(const std::string& path, int width, int height) {
