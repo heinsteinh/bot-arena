@@ -1,6 +1,7 @@
 #ifndef GAMES_BILLBOARD_DEMO_BILLBOARDDEMOGAME_HPP
 #define GAMES_BILLBOARD_DEMO_BILLBOARDDEMOGAME_HPP
 
+#include <random>
 #include <string>
 #include <vector>
 
@@ -31,6 +32,8 @@ class BillboardDemoGame final : public engine::Layer {
   engine::OrbitCameraController m_camera;
   std::vector<glm::vec3> m_enemies;
   std::vector<DamageNumber> m_numbers;
+  std::mt19937 m_rng{1337};    // deterministic
+  float m_spawnTimer = 0.35f;  // seconds until the next live spawn
   bool m_screenshot = false;
 
   bool m_ready = false;

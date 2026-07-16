@@ -84,6 +84,23 @@ void BillboardDemoGame::onUpdate(float dt) {
       std::remove_if(m_numbers.begin(), m_numbers.end(),
                      [](const DamageNumber& d) { return d.age >= kLifetime; }),
       m_numbers.end());
+
+  // Continuously spawn new hits over random enemies so numbers keep flowing.
+  m_spawnTimer -= dt;
+  while (m_spawnTimer <= 0.0f && !m_enemies.empty()) {
+    m_spawnTimer += 0.4f;
+    std::uniform_int_distribution<int> pick(
+        0, static_cast<int>(m_enemies.size()) - 1);
+    std::uniform_int_distribution<int> roll(1, 120);
+    const int value = roll(m_rng);
+    const bool crit = value >= 100;
+    DamageNumber d;
+    d.worldPos = m_enemies[pick(m_rng)] + glm::vec3(0.0f, 1.1f, 0.0f);
+    d.text = std::to_string(value);
+    d.color = damageColor(value, crit);
+    d.scaleMul = crit ? 1.6f : 1.0f;
+    m_numbers.push_back(d);
+  }
 }
 
 void BillboardDemoGame::ensureResources(engine::Renderer& renderer) {
