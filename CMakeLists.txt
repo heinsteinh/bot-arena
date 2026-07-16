@@ -141,6 +141,12 @@ add_executable(normalmap_demo_game
 )
 target_link_libraries(normalmap_demo_game PRIVATE bot_arena_engine)
 
+add_executable(parallax_light_demo_game
+    games/parallax_light_demo/main.cpp
+    games/parallax_light_demo/ParallaxLightDemoGame.cpp
+)
+target_link_libraries(parallax_light_demo_game PRIVATE bot_arena_engine)
+
 enable_testing()
 
 add_executable(bot_arena_tests

@@ -49,6 +49,15 @@ layout(std140, binding = 1) uniform Light {
     vec4 u_lightDir;
 };
 
+struct PointLight {
+    vec4 positionRadius;
+    vec4 color;
+};
+layout(std140, binding = 2) uniform PointLights {
+    int u_pointCount;
+    PointLight u_points[32];
+};
+
 uniform vec4 u_baseColor;
 uniform float u_metallic;
 uniform float u_roughness;
@@ -118,12 +127,18 @@ void main() {
     mat3 TBN = mat3(T, cross(Ngeo, T), Ngeo);
 
     vec2 uv = v_uv;
-    float selfShadow = 1.0;
+    vec4 selfShadow = vec4(1.0);   // r = directional, gba = point lights 0..2
     if (u_hasHeight == 1) {
         vec3 viewT = normalize(transpose(TBN) * (u_cameraPos.xyz - v_worldPos));
         uv = parallaxOcclusion(v_uv, viewT);
         vec3 lightT = normalize(transpose(TBN) * normalize(u_lightDir.xyz));
-        selfShadow = parallaxShadow(uv, lightT);
+        selfShadow.r = parallaxShadow(uv, lightT);
+        int np = min(u_pointCount, 3);
+        for (int i = 0; i < np; ++i) {
+            vec3 Lw = normalize(u_points[i].positionRadius.xyz - v_worldPos);
+            vec3 Lt = normalize(transpose(TBN) * Lw);
+            selfShadow[i + 1] = parallaxShadow(uv, Lt);
+        }
     }
 
     vec3 albedo = u_hasAlbedo == 1
@@ -138,5 +153,5 @@ void main() {
     }
     gNormal = vec4(N, u_roughness);
     gWorldPos = vec4(v_worldPos, 1.0);
-    gShadow = vec4(selfShadow, 0.0, 0.0, 1.0);
+    gShadow = selfShadow;
 }

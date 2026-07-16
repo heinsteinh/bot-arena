@@ -345,9 +345,9 @@ unsigned int createLightingProgram() {
       // Directional light (shadowed).
       vec3 L = normalize(u_lightDir.xyz);
       float shadow = shadowPCF(worldPos, max(dot(N, L), 0.0));
-      float pShadow = texture(u_gShadow, v_uv).r;   // parallax self-shadow
+      vec4 pShadow = texture(u_gShadow, v_uv);   // r=dir, gba=points 0..2
       color += brdf(N, V, L, albedo, metallic, rough, F0, vec3(3.0)) *
-               (1.0 - shadow) * pShadow;
+               (1.0 - shadow) * pShadow.r;
 
       // Point lights.
       for (int i = 0; i < u_pointCount; ++i) {
@@ -358,7 +358,8 @@ unsigned int createLightingProgram() {
         float att = clamp(1.0 - dist / radius, 0.0, 1.0);
         att *= att;
         vec3 radiance = u_points[i].color.rgb * u_points[i].color.a * att;
-        color += brdf(N, V, Lp, albedo, metallic, rough, F0, radiance);
+        float ps = i < 3 ? pShadow[i + 1] : 1.0;
+        color += brdf(N, V, Lp, albedo, metallic, rough, F0, radiance) * ps;
       }
 
       fragColor = vec4(color, 1.0);
