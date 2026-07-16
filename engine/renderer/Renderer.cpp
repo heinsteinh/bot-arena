@@ -270,6 +270,12 @@ void Renderer::endFrame() {
   m_backend->compositeBloom(m_sceneFBO->colorAttachment(),
                             m_bloomFBO[src]->colorAttachment());
 
+  // World-space billboard text -> default framebuffer, on top of the scene
+  // but under the screen-space overlay.
+  for (const TextRenderer::WorldBatch& b : m_textRenderer.worldBatches()) {
+    m_backend->drawWorldTextBatch(b.atlas, b.verts, b.pxRange, b.styles);
+  }
+
   // Text overlay -> default framebuffer (still bound), on top of the scene.
   for (const TextRenderer::Batch& b : m_textRenderer.batches()) {
     m_backend->drawTextBatch(b.backend, b.atlas, b.verts, b.pxRange, b.styles);

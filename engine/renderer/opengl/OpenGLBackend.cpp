@@ -21,6 +21,7 @@
 #include "engine/renderer/VertexArray.hpp"
 #include "engine/renderer/text/TextStyle.hpp"
 #include "engine/renderer/text/TextVertex.hpp"
+#include "engine/renderer/text/WorldTextVertex.hpp"
 
 namespace engine {
 
@@ -43,6 +44,77 @@ constexpr CubeFace kCubeFaces[6] = {
     {{0, 0, 1}, {1, 0, 0}, {0, -1, 0}},    // +Z
     {{0, 0, -1}, {-1, 0, 0}, {0, -1, 0}},  // -Z
 };
+
+// SDF text effect fragment shader: resolves coverage from the distance
+// field and composites fill/outline/glow/shadow from the style table.
+// Shared by the screen-space and world-space (billboard) SDF text programs.
+constexpr const char* kSdfEffectFs = R"(
+      #version 460 core
+      in vec2 vUV;
+      flat in uint vStyleIndex;
+      out vec4 FragColor;
+      uniform sampler2D uAtlas;
+      uniform float uPxRange;
+
+      struct GpuStyle {
+        vec4 fillColor;
+        vec4 outlineColor;
+        vec4 glowColor;
+        vec4 shadowColor;
+        vec4 params0;  // outlineWidthPx, glowSizePx, shadowOffX, shadowOffY
+        vec4 params1;  // shadowSoftnessPx, _, _, _
+      };
+      layout(std140, binding = 3) uniform StyleTable {
+        GpuStyle styles[64];
+      };
+
+      float screenPxRange() {
+        vec2 unitRange = vec2(uPxRange) / vec2(textureSize(uAtlas, 0));
+        vec2 screenTexSize = vec2(1.0) / fwidth(vUV);
+        return max(0.5 * dot(unitRange, screenTexSize), 1.0);
+      }
+      // Composite src OVER dst, both straight alpha.
+      vec4 over(vec4 dst, vec4 src) {
+        float a = src.a + dst.a * (1.0 - src.a);
+        vec3 c = (src.rgb * src.a + dst.rgb * dst.a * (1.0 - src.a)) /
+                 max(a, 1e-4);
+        return vec4(c, a);
+      }
+      void main() {
+        GpuStyle s = styles[vStyleIndex];
+        float outlineW = s.params0.x;
+        float glowSz = s.params0.y;
+        vec2 shadowOff = s.params0.zw;
+        float shadowSoft = s.params1.x;
+
+        float spr = screenPxRange();
+        float sd = spr * (texture(uAtlas, vUV).r - 0.5);   // signed px distance
+
+        float fill = clamp(sd + 0.5, 0.0, 1.0);
+        float body = clamp(sd + outlineW + 0.5, 0.0, 1.0); // fill + outline
+        float outline = max(body - fill, 0.0);
+
+        float glow = 0.0;
+        if (glowSz > 0.0) {
+          glow = clamp((sd + outlineW + glowSz) / glowSz, 0.0, 1.0) *
+                 (1.0 - body);
+        }
+        float shadow = 0.0;
+        if (s.shadowColor.a > 0.0) {
+          vec2 sUV = vUV - shadowOff * fwidth(vUV);
+          float sdS = spr * (texture(uAtlas, sUV).r - 0.5);
+          float soft = max(shadowSoft, 1.0);
+          shadow = smoothstep(-soft, soft, sdS) * (1.0 - body);
+        }
+
+        vec4 c = vec4(0.0);
+        c = over(c, vec4(s.shadowColor.rgb, s.shadowColor.a * shadow));
+        c = over(c, vec4(s.glowColor.rgb, s.glowColor.a * glow));
+        c = over(c, vec4(s.outlineColor.rgb, s.outlineColor.a * outline));
+        c = over(c, vec4(s.fillColor.rgb, s.fillColor.a * fill));
+        FragColor = c;
+      }
+    )";
 
 unsigned int compileShader(unsigned int type, const char* source) {
   const unsigned int shader = glCreateShader(type);
@@ -966,75 +1038,8 @@ OpenGLBackend::OpenGLBackend() {
     glDeleteShader(f);
 
     // SDF text: resolve coverage from the distance field; crisp at any scale.
-    constexpr const char* sdfFs = R"(
-      #version 460 core
-      in vec2 vUV;
-      flat in uint vStyleIndex;
-      out vec4 FragColor;
-      uniform sampler2D uAtlas;
-      uniform float uPxRange;
-
-      struct GpuStyle {
-        vec4 fillColor;
-        vec4 outlineColor;
-        vec4 glowColor;
-        vec4 shadowColor;
-        vec4 params0;  // outlineWidthPx, glowSizePx, shadowOffX, shadowOffY
-        vec4 params1;  // shadowSoftnessPx, _, _, _
-      };
-      layout(std140, binding = 3) uniform StyleTable {
-        GpuStyle styles[64];
-      };
-
-      float screenPxRange() {
-        vec2 unitRange = vec2(uPxRange) / vec2(textureSize(uAtlas, 0));
-        vec2 screenTexSize = vec2(1.0) / fwidth(vUV);
-        return max(0.5 * dot(unitRange, screenTexSize), 1.0);
-      }
-      // Composite src OVER dst, both straight alpha.
-      vec4 over(vec4 dst, vec4 src) {
-        float a = src.a + dst.a * (1.0 - src.a);
-        vec3 c = (src.rgb * src.a + dst.rgb * dst.a * (1.0 - src.a)) /
-                 max(a, 1e-4);
-        return vec4(c, a);
-      }
-      void main() {
-        GpuStyle s = styles[vStyleIndex];
-        float outlineW = s.params0.x;
-        float glowSz = s.params0.y;
-        vec2 shadowOff = s.params0.zw;
-        float shadowSoft = s.params1.x;
-
-        float spr = screenPxRange();
-        float sd = spr * (texture(uAtlas, vUV).r - 0.5);   // signed px distance
-
-        float fill = clamp(sd + 0.5, 0.0, 1.0);
-        float body = clamp(sd + outlineW + 0.5, 0.0, 1.0); // fill + outline
-        float outline = max(body - fill, 0.0);
-
-        float glow = 0.0;
-        if (glowSz > 0.0) {
-          glow = clamp((sd + outlineW + glowSz) / glowSz, 0.0, 1.0) *
-                 (1.0 - body);
-        }
-        float shadow = 0.0;
-        if (s.shadowColor.a > 0.0) {
-          vec2 sUV = vUV - shadowOff * fwidth(vUV);
-          float sdS = spr * (texture(uAtlas, sUV).r - 0.5);
-          float soft = max(shadowSoft, 1.0);
-          shadow = smoothstep(-soft, soft, sdS) * (1.0 - body);
-        }
-
-        vec4 c = vec4(0.0);
-        c = over(c, vec4(s.shadowColor.rgb, s.shadowColor.a * shadow));
-        c = over(c, vec4(s.glowColor.rgb, s.glowColor.a * glow));
-        c = over(c, vec4(s.outlineColor.rgb, s.outlineColor.a * outline));
-        c = over(c, vec4(s.fillColor.rgb, s.fillColor.a * fill));
-        FragColor = c;
-      }
-    )";
     const unsigned int sv = compileShader(GL_VERTEX_SHADER, vs);
-    const unsigned int sf = compileShader(GL_FRAGMENT_SHADER, sdfFs);
+    const unsigned int sf = compileShader(GL_FRAGMENT_SHADER, kSdfEffectFs);
     m_sdfTextProgram = glCreateProgram();
     glAttachShader(m_sdfTextProgram, sv);
     glAttachShader(m_sdfTextProgram, sf);
@@ -1065,6 +1070,60 @@ OpenGLBackend::OpenGLBackend() {
     glVertexArrayAttribIFormat(m_textVao, 4, 1, GL_UNSIGNED_INT,
                                offsetof(TextVertex, styleIndex));
     glVertexArrayAttribBinding(m_textVao, 4, 0);
+  }
+
+  // World-space billboard text: SDF glyph quads anchored in world space and
+  // rotated to face the camera, reusing the screen-space SDF effect shader.
+  {
+    constexpr const char* worldVs = R"(
+      #version 460 core
+      layout(location = 0) in vec3 aAnchor;
+      layout(location = 1) in vec2 aOffset;
+      layout(location = 2) in vec2 aUV;
+      layout(location = 3) in uint aStyle;
+      layout(std140, binding = 0) uniform Camera {
+        mat4 uView; mat4 uProjection; mat4 uViewProjection;
+        vec4 uCameraPosition; mat4 uInvViewProjection;
+      };
+      out vec2 vUV;
+      flat out uint vStyleIndex;
+      void main() {
+        mat3 camRot = transpose(mat3(uView));
+        vec3 world = aAnchor + camRot[0] * aOffset.x + camRot[1] * aOffset.y;
+        vUV = aUV;
+        vStyleIndex = aStyle;
+        gl_Position = uViewProjection * vec4(world, 1.0);
+      }
+    )";
+    const unsigned int wv = compileShader(GL_VERTEX_SHADER, worldVs);
+    const unsigned int wf = compileShader(GL_FRAGMENT_SHADER, kSdfEffectFs);
+    m_worldTextProgram = glCreateProgram();
+    glAttachShader(m_worldTextProgram, wv);
+    glAttachShader(m_worldTextProgram, wf);
+    glLinkProgram(m_worldTextProgram);
+    glDeleteShader(wv);
+    glDeleteShader(wf);
+
+    glCreateVertexArrays(1, &m_worldTextVao);
+    glCreateBuffers(1, &m_worldTextVbo);
+    glVertexArrayVertexBuffer(m_worldTextVao, 0, m_worldTextVbo, 0,
+                              sizeof(WorldTextVertex));
+    glEnableVertexArrayAttrib(m_worldTextVao, 0);
+    glVertexArrayAttribFormat(m_worldTextVao, 0, 3, GL_FLOAT, GL_FALSE,
+                              offsetof(WorldTextVertex, anchor));
+    glVertexArrayAttribBinding(m_worldTextVao, 0, 0);
+    glEnableVertexArrayAttrib(m_worldTextVao, 1);
+    glVertexArrayAttribFormat(m_worldTextVao, 1, 2, GL_FLOAT, GL_FALSE,
+                              offsetof(WorldTextVertex, offset));
+    glVertexArrayAttribBinding(m_worldTextVao, 1, 0);
+    glEnableVertexArrayAttrib(m_worldTextVao, 2);
+    glVertexArrayAttribFormat(m_worldTextVao, 2, 2, GL_FLOAT, GL_FALSE,
+                              offsetof(WorldTextVertex, uv));
+    glVertexArrayAttribBinding(m_worldTextVao, 2, 0);
+    glEnableVertexArrayAttrib(m_worldTextVao, 3);
+    glVertexArrayAttribIFormat(m_worldTextVao, 3, 1, GL_UNSIGNED_INT,
+                               offsetof(WorldTextVertex, styleIndex));
+    glVertexArrayAttribBinding(m_worldTextVao, 3, 0);
   }
 
   // Additive camera-facing particle billboards (instanced).
@@ -1510,6 +1569,41 @@ void OpenGLBackend::drawTextBatch(FontBackend backend, uint32_t atlasTextureId,
   glBindVertexArray(m_textVao);
   glDrawArrays(GL_TRIANGLES, 0, static_cast<GLsizei>(verts.size()));
   glEnable(GL_DEPTH_TEST);
+  glDisable(GL_BLEND);
+}
+
+void OpenGLBackend::drawWorldTextBatch(
+    uint32_t atlasTextureId, const std::vector<WorldTextVertex>& verts,
+    float pxRange, const std::vector<GpuStyle>& styles) {
+  if (verts.empty()) return;
+
+  glNamedBufferData(
+      m_worldTextVbo,
+      static_cast<GLsizeiptr>(verts.size() * sizeof(WorldTextVertex)),
+      verts.data(), GL_DYNAMIC_DRAW);
+
+  glUseProgram(m_worldTextProgram);
+  glBindTextureUnit(0, atlasTextureId);
+  glUniform1i(glGetUniformLocation(m_worldTextProgram, "uAtlas"), 0);
+  glUniform1f(glGetUniformLocation(m_worldTextProgram, "uPxRange"), pxRange);
+  if (!styles.empty()) {
+    m_textStyleUBO->setData(
+        styles.data(), static_cast<uint32_t>(styles.size() * sizeof(GpuStyle)));
+  }
+
+  // Always-on-top: depth test + write off, cull off, straight-alpha blend.
+  glEnable(GL_BLEND);
+  glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+  glDisable(GL_DEPTH_TEST);
+  glDepthMask(GL_FALSE);
+  glDisable(GL_CULL_FACE);
+  glBindVertexArray(m_worldTextVao);
+  glDrawArrays(GL_TRIANGLES, 0, static_cast<GLsizei>(verts.size()));
+  // Restore the engine's overlay-phase defaults (not saved prior state): this
+  // relies on the fixed composite -> world -> screen-text draw order.
+  glDepthMask(GL_TRUE);
+  glEnable(GL_DEPTH_TEST);
+  glEnable(GL_CULL_FACE);
   glDisable(GL_BLEND);
 }
 

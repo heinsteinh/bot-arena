@@ -22,6 +22,10 @@ struct FontAsset {
   std::vector<Ref<FontAsset>> fallback;  // empty this slice
 
   uint32_t atlasRendererID() const { return atlas->rendererID(); }
+
+  bool supportsDistanceFieldEffects() const {
+    return backend == FontBackend::SDF || backend == FontBackend::MSDF;
+  }
 };
 
 using FontHandle = Ref<FontAsset>;
