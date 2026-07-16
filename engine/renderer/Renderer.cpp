@@ -44,8 +44,7 @@ Renderer::Renderer(JobSystem& jobs)
   shadowSpec.width = kShadowSize;
   shadowSpec.height = kShadowSize;
   shadowSpec.depthOnly = true;
-  m_shadowFBO = Framebuffer::Create(shadowSpec);
-  m_shadowPass = RenderPass{m_shadowFBO, {0.0f, 0.0f, 0.0f, 1.0f}, true};
+  for (int i = 0; i < 3; ++i) m_shadowFBO[i] = Framebuffer::Create(shadowSpec);
 
   m_envMap = TextureCube::Create(kEnvSize, 1);
   m_backend->renderEnvironment(m_envMap->rendererID(),
@@ -241,15 +240,31 @@ void Renderer::endFrame() {
   }
 
   // Shadow pass -> depth-only shadow map (light POV).
-  const glm::mat4 lightViewProj =
-      makeLightViewProj(m_lightDir, {0.0f, 0.5f, 0.0f}, 16.0f, 0.1f, 64.0f);
-  m_backend->beginPass(m_shadowPass.target.get(), m_shadowPass.clearColor,
-                       m_shadowPass.clearDepth, kShadowSize, kShadowSize);
-  m_backend->executeShadow(m_merged, lightViewProj, m_lanes[0]->arena,
-                           m_registry);
-  m_light.lightViewProj = lightViewProj;
+  // Cascaded shadow maps: split the camera frustum by depth, fit + render a
+  // tight depth map per cascade.
+  const float kShadowNear = 0.5f, kShadowFar = 60.0f;
+  float splits[3];
+  for (int i = 0; i < 3; ++i) {
+    const float p = static_cast<float>(i + 1) / 3.0f;
+    const float logS = kShadowNear * std::pow(kShadowFar / kShadowNear, p);
+    const float uniS = kShadowNear + (kShadowFar - kShadowNear) * p;
+    splits[i] = glm::mix(uniS, logS, 0.5f);
+  }
+  float nearD = kShadowNear;
+  for (int i = 0; i < 3; ++i) {
+    const glm::mat4 vp = makeCascadeViewProj(
+        m_lightDir, m_camera.view, m_camera.projection, nearD, splits[i]);
+    m_light.cascadeViewProj[i] = vp;
+    m_backend->beginPass(m_shadowFBO[i].get(), {0.0f, 0.0f, 0.0f, 1.0f}, true,
+                         kShadowSize, kShadowSize);
+    m_backend->executeShadow(m_merged, vp, m_lanes[0]->arena, m_registry);
+    nearD = splits[i];
+  }
+  m_light.cascadeSplits = glm::vec4(splits[0], splits[1], splits[2], 0.0f);
   m_light.lightDir = glm::vec4(glm::normalize(m_lightDir), 0.0f);
-  m_backend->setLight(m_light, m_shadowFBO->depthAttachment());
+  m_backend->setLight(m_light, m_shadowFBO[0]->depthAttachment(),
+                      m_shadowFBO[1]->depthAttachment(),
+                      m_shadowFBO[2]->depthAttachment());
 
   // Geometry pass -> G-buffer MRT (albedo/normal/world-pos + depth).
   m_backend->beginPass(m_gbufferPass.target.get(), m_gbufferPass.clearColor,
@@ -271,8 +286,7 @@ void Renderer::endFrame() {
                        false, m_width, m_height);
   m_backend->lightingPass(
       m_gbufferFBO->colorAttachment(0), m_gbufferFBO->colorAttachment(1),
-      m_gbufferFBO->colorAttachment(2), m_shadowFBO->depthAttachment(),
-      m_gbufferFBO->colorAttachment(3));
+      m_gbufferFBO->colorAttachment(2), m_gbufferFBO->colorAttachment(3));
 
   // Emissive point-light billboards -> HDR scene (additive), before bloom.
   m_backend->drawLightBillboards(m_pointLightCount,

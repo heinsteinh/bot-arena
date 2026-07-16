@@ -3,6 +3,7 @@
 #include <glad/glad.h>
 
 #include <cstddef>
+#include <cstdlib>
 #include <cstring>
 #include <glm/gtc/type_ptr.hpp>
 #include <stdexcept>
@@ -231,7 +232,10 @@ unsigned int createLightingProgram() {
     uniform sampler2D u_gNormal;
     uniform sampler2D u_gWorldPos;
     uniform sampler2D u_gShadow;
-    uniform sampler2DShadow u_shadowMap;
+    uniform sampler2DShadow u_cascade0;
+    uniform sampler2DShadow u_cascade1;
+    uniform sampler2DShadow u_cascade2;
+    uniform int u_showCascades;
     uniform samplerCube u_envMap;
     uniform samplerCube u_irradiance;
     uniform samplerCube u_prefilter;
@@ -248,7 +252,8 @@ unsigned int createLightingProgram() {
     };
 
     layout(std140, binding = 1) uniform Light {
-      mat4 u_lightViewProj;
+      mat4 u_cascadeViewProj[3];
+      vec4 u_cascadeSplits;
       vec4 u_lightDir;
     };
 
@@ -258,8 +263,20 @@ unsigned int createLightingProgram() {
       PointLight u_points[32];
     };
 
+    int chooseCascade(float viewDepth) {
+      if (viewDepth < u_cascadeSplits.x) return 0;
+      if (viewDepth < u_cascadeSplits.y) return 1;
+      return 2;
+    }
+    float sampleCascade(int c, vec3 p) {
+      if (c == 0) return texture(u_cascade0, p);
+      if (c == 1) return texture(u_cascade1, p);
+      return texture(u_cascade2, p);
+    }
     float shadowPCF(vec3 worldPos, float ndl) {
-      vec4 lc = u_lightViewProj * vec4(worldPos, 1.0);
+      float viewDepth = -(u_view * vec4(worldPos, 1.0)).z;
+      int c = chooseCascade(viewDepth);
+      vec4 lc = u_cascadeViewProj[c] * vec4(worldPos, 1.0);
       vec3 p = lc.xyz / lc.w * 0.5 + 0.5;
       if (p.z > 1.0) return 0.0;
       float bias = max(0.0025 * (1.0 - ndl), 0.0008);
@@ -267,8 +284,7 @@ unsigned int createLightingProgram() {
       float sum = 0.0;
       for (int x = -1; x <= 1; ++x)
         for (int y = -1; y <= 1; ++y)
-          sum += texture(u_shadowMap,
-                         vec3(p.xy + vec2(x, y) * texel, p.z - bias));
+          sum += sampleCascade(c, vec3(p.xy + vec2(x, y) * texel, p.z - bias));
       return 1.0 - sum / 9.0;
     }
 
@@ -360,6 +376,13 @@ unsigned int createLightingProgram() {
         vec3 radiance = u_points[i].color.rgb * u_points[i].color.a * att;
         float ps = i < 3 ? pShadow[i + 1] : 1.0;
         color += brdf(N, V, Lp, albedo, metallic, rough, F0, radiance) * ps;
+      }
+
+      if (u_showCascades == 1) {
+        int dc = chooseCascade(-(u_view * vec4(worldPos, 1.0)).z);
+        vec3 tint = dc == 0 ? vec3(1.0, 0.6, 0.6)
+                  : dc == 1 ? vec3(0.6, 1.0, 0.6) : vec3(0.6, 0.6, 1.0);
+        color *= tint;
       }
 
       fragColor = vec4(color, 1.0);
@@ -1259,10 +1282,12 @@ void OpenGLBackend::executeShadow(const std::vector<RenderEntry>& entries,
   glDisable(GL_CULL_FACE);
 }
 
-void OpenGLBackend::setLight(const LightUniforms& light,
-                             uint32_t shadowMapTexture) {
+void OpenGLBackend::setLight(const LightUniforms& light, uint32_t cascade0,
+                             uint32_t cascade1, uint32_t cascade2) {
   m_lightUBO->setData(&light, sizeof(LightUniforms));
-  m_shadowMap = shadowMapTexture;
+  m_cascadeMap[0] = cascade0;
+  m_cascadeMap[1] = cascade1;
+  m_cascadeMap[2] = cascade2;
 }
 
 void OpenGLBackend::executeGeometry(const std::vector<RenderEntry>& entries,
@@ -1331,14 +1356,15 @@ void OpenGLBackend::setPointLights(int count, const PointLight* lights) {
 }
 
 void OpenGLBackend::lightingPass(uint32_t gAlbedo, uint32_t gNormal,
-                                 uint32_t gWorldPos, uint32_t shadowMap,
-                                 uint32_t gShadow) {
+                                 uint32_t gWorldPos, uint32_t gShadow) {
   glDisable(GL_DEPTH_TEST);
   glUseProgram(m_lightingShader);
   glBindTextureUnit(0, gAlbedo);
   glBindTextureUnit(1, gNormal);
   glBindTextureUnit(2, gWorldPos);
-  glBindTextureUnit(3, shadowMap);
+  glBindTextureUnit(3, m_cascadeMap[0]);
+  glBindTextureUnit(10, m_cascadeMap[1]);
+  glBindTextureUnit(11, m_cascadeMap[2]);
   glBindTextureUnit(4, m_envMap);
   glBindTextureUnit(5, m_irradianceMap);
   glBindTextureUnit(6, m_prefilterMap);
@@ -1348,13 +1374,19 @@ void OpenGLBackend::lightingPass(uint32_t gAlbedo, uint32_t gNormal,
   glUniform1i(glGetUniformLocation(m_lightingShader, "u_gAlbedo"), 0);
   glUniform1i(glGetUniformLocation(m_lightingShader, "u_gNormal"), 1);
   glUniform1i(glGetUniformLocation(m_lightingShader, "u_gWorldPos"), 2);
-  glUniform1i(glGetUniformLocation(m_lightingShader, "u_shadowMap"), 3);
+  glUniform1i(glGetUniformLocation(m_lightingShader, "u_cascade0"), 3);
+  glUniform1i(glGetUniformLocation(m_lightingShader, "u_cascade1"), 10);
+  glUniform1i(glGetUniformLocation(m_lightingShader, "u_cascade2"), 11);
   glUniform1i(glGetUniformLocation(m_lightingShader, "u_envMap"), 4);
   glUniform1i(glGetUniformLocation(m_lightingShader, "u_irradiance"), 5);
   glUniform1i(glGetUniformLocation(m_lightingShader, "u_prefilter"), 6);
   glUniform1i(glGetUniformLocation(m_lightingShader, "u_brdfLUT"), 7);
   glUniform1i(glGetUniformLocation(m_lightingShader, "u_ao"), 8);
   glUniform1i(glGetUniformLocation(m_lightingShader, "u_gShadow"), 9);
+  static int showCascades =
+      std::getenv("BOTARENA_CSM") ? std::atoi(std::getenv("BOTARENA_CSM")) : 0;
+  glUniform1i(glGetUniformLocation(m_lightingShader, "u_showCascades"),
+              showCascades);
   glUniform1i(glGetUniformLocation(m_lightingShader, "u_prefilterMips"),
               m_prefilterMips);
   glBindVertexArray(m_quadVao);
