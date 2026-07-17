@@ -1,11 +1,11 @@
 #include "games/shooter/ShooterGame.hpp"
 
-#include <algorithm>
 #include <cmath>
 #include <glm/gtc/quaternion.hpp>
 #include <vector>
 
 #include "engine/ai/Steering.hpp"
+#include "engine/assets/ModelLoader.hpp"
 #include "engine/core/AssetPath.hpp"
 #include "engine/core/Input.hpp"
 #include "engine/gameplay/Combat.hpp"
@@ -19,6 +19,7 @@
 #include "engine/scene/Components.hpp"
 #include "engine/scene/ControllerComponents.hpp"
 #include "engine/scene/MeshComponent.hpp"
+#include "engine/scene/ModelComponent.hpp"
 #include "games/shooter/Components.hpp"
 
 namespace {
@@ -135,15 +136,7 @@ void ShooterGame::spawnEnemy() {
 
 void ShooterGame::destroyActor(entt::entity e) {
   entt::registry& reg = m_scene.registry();
-  if (!reg.valid(e)) return;
-  const auto it = m_visualParts.find(e);
-  if (it != m_visualParts.end()) {
-    for (const entt::entity part : it->second) {
-      if (reg.valid(part)) reg.destroy(part);
-    }
-    m_visualParts.erase(it);
-  }
-  reg.destroy(e);
+  if (reg.valid(e)) reg.destroy(e);  // ModelComponent is destroyed with it
 }
 
 void ShooterGame::stepSim(float dt) {
@@ -356,84 +349,32 @@ void ShooterGame::stepSim(float dt) {
   m_explosions.update(dt);
 }
 
-void ShooterGame::attachVisual(
-    entt::entity owner, const engine::Model& model,
-    std::optional<engine::MaterialHandle> materialOverride) {
-  if (!model.valid) return;
-  std::vector<entt::entity> parts;
-  parts.reserve(model.submeshes.size());
-  for (const engine::Submesh& sm : model.submeshes) {
-    engine::SceneObject part = m_scene.createObject("ShipPart");
-    part.addComponent<engine::MeshComponent>(
-        engine::MeshComponent{sm.mesh, materialOverride.value_or(sm.material)});
-    parts.push_back(static_cast<entt::entity>(part));
-  }
-  m_visualParts.emplace(owner, std::move(parts));
-}
-
-void ShooterGame::syncVisual(entt::entity owner, const engine::Model& model,
-                             float extraYaw) {
-  if (!model.valid) return;
-  const auto it = m_visualParts.find(owner);
-  if (it == m_visualParts.end()) return;
-
+void ShooterGame::attachMissingModels() {
   entt::registry& reg = m_scene.registry();
-  const engine::TransformComponent& ownerT =
-      reg.get<engine::TransformComponent>(owner);
+  const glm::quat shipFacing =
+      glm::angleAxis(kShipYaw, glm::vec3(0.0f, 1.0f, 0.0f));
 
-  // The submesh transform is translate(pos) * rotate(yaw) * scale(scale) *
-  // fitToUnit(bounds), and fitToUnit is itself scale(1/largest) *
-  // translate(-center). Since the game scale and the fit scale are both
-  // uniform, they commute with translation/rotation and the whole chain
-  // collapses back to a single translate * rotate * scale -- one shared
-  // TransformComponent for every submesh of this model.
-  const glm::vec3 extent = model.bounds.max - model.bounds.min;
-  const float largest = std::max(extent.x, std::max(extent.y, extent.z));
-  const float uni = largest > 1e-6f ? ownerT.scale.x / largest : ownerT.scale.x;
-  const glm::vec3 center = (model.bounds.min + model.bounds.max) * 0.5f;
-  const glm::quat rot =
-      ownerT.rotation * glm::angleAxis(extraYaw, glm::vec3(0.0f, 1.0f, 0.0f));
-  const glm::vec3 translation = ownerT.translation + rot * (-uni * center);
-
-  for (const entt::entity part : it->second) {
-    engine::TransformComponent& t = reg.get<engine::TransformComponent>(part);
-    t.translation = translation;
-    t.rotation = rot;
-    t.scale = glm::vec3(uni);
-  }
-}
-
-void ShooterGame::attachMissingVisuals() {
-  entt::registry& reg = m_scene.registry();
   for (const entt::entity e : reg.view<Player>()) {
-    if (m_visualParts.find(e) == m_visualParts.end()) {
-      attachVisual(e, m_playerModel, std::nullopt);
+    if (!reg.all_of<engine::ModelComponent>(e)) {
+      reg.emplace<engine::ModelComponent>(
+          e, engine::ModelComponent{m_playerModel, true, 0, shipFacing});
     }
   }
   for (const entt::entity e : reg.view<Enemy>()) {
-    if (m_visualParts.find(e) == m_visualParts.end()) {
-      attachVisual(e, m_enemyModels[reg.get<Enemy>(e).tier], std::nullopt);
+    if (!reg.all_of<engine::ModelComponent>(e)) {
+      reg.emplace<engine::ModelComponent>(
+          e, engine::ModelComponent{m_enemyModels[reg.get<Enemy>(e).tier], true,
+                                    0, shipFacing});
     }
   }
   for (const entt::entity e : reg.view<Bullet>()) {
-    if (m_visualParts.find(e) == m_visualParts.end()) {
-      const engine::MaterialHandle mat =
+    if (!reg.all_of<engine::ModelComponent>(e)) {
+      const engine::MaterialHandle tint =
           reg.get<Bullet>(e).fromPlayer ? m_playerBulletMat : m_enemyBulletMat;
-      attachVisual(e, m_bulletModel, mat);
+      reg.emplace<engine::ModelComponent>(
+          e, engine::ModelComponent{m_bulletModel, true, tint,
+                                    glm::quat(1.0f, 0.0f, 0.0f, 0.0f)});
     }
-  }
-}
-
-void ShooterGame::syncAllVisuals() {
-  entt::registry& reg = m_scene.registry();
-  for (const entt::entity e : reg.view<Player>()) {
-    syncVisual(e, m_playerModel, kShipYaw);
-  }
-  for (const entt::entity e : reg.view<Enemy>()) {
-    syncVisual(e, m_enemyModels[reg.get<Enemy>(e).tier], kShipYaw);
-  }
-  for (const entt::entity e : reg.view<Bullet>()) {
-    syncVisual(e, m_bulletModel, kBulletYawOffset);
   }
 }
 
@@ -447,16 +388,16 @@ void ShooterGame::onRender(engine::Renderer& renderer, int width, int height) {
         reg.registerMaterial({{0.3f, 1.0f, 0.4f, 1.0f}, 0.2f, 0.3f, s});
     m_enemyBulletMat =
         reg.registerMaterial({{1.0f, 0.3f, 0.2f, 1.0f}, 0.2f, 0.3f, s});
-    m_playerModel = engine::loadModel(
-        engine::assetPath("asteroid-game/Ships/Viper.obj"), reg, s);
-    m_enemyModels[0] =
-        engine::loadModel(engine::assetPath("SpaceGame/Spaceship.obj"), reg, s);
-    m_enemyModels[1] = engine::loadModel(
-        engine::assetPath("SpaceGame/Spaceship3.obj"), reg, s);
-    m_enemyModels[2] = engine::loadModel(
-        engine::assetPath("asteroid-game/Ships/eliteship.obj"), reg, s);
-    m_bulletModel = engine::loadModel(
-        engine::assetPath("asteroid-game/Objects/Projectile.obj"), reg, s);
+    m_playerModel = reg.registerModel(engine::loadModel(
+        engine::assetPath("asteroid-game/Ships/Viper.obj"), reg, s));
+    m_enemyModels[0] = reg.registerModel(engine::loadModel(
+        engine::assetPath("SpaceGame/Spaceship.obj"), reg, s));
+    m_enemyModels[1] = reg.registerModel(engine::loadModel(
+        engine::assetPath("SpaceGame/Spaceship3.obj"), reg, s));
+    m_enemyModels[2] = reg.registerModel(engine::loadModel(
+        engine::assetPath("asteroid-game/Ships/eliteship.obj"), reg, s));
+    m_bulletModel = reg.registerModel(engine::loadModel(
+        engine::assetPath("asteroid-game/Objects/Projectile.obj"), reg, s));
 
     // The ground never moved after onAttach's warm-up spawned it (before
     // the Renderer existed), so attach its MeshComponent now, on the first
@@ -488,9 +429,8 @@ void ShooterGame::onRender(engine::Renderer& renderer, int width, int height) {
 
   // Ships/enemies/bullets spawn continuously (before resources are ready
   // during onAttach's warm-up, and every frame afterward), so backfill
-  // their render proxies and resync all of them right before drawing.
-  attachMissingVisuals();
-  syncAllVisuals();
+  // any actor still missing its ModelComponent right before drawing.
+  attachMissingModels();
 
   m_scene.render(renderer, aspect);
 

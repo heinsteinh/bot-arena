@@ -4,6 +4,7 @@
 #include <glm/glm.hpp>
 #include <vector>
 
+#include "engine/assets/Model.hpp"  // Model (stored by handle)
 #include "engine/core/Base.hpp"
 #include "engine/renderer/RenderCommand.hpp"  // handle typedefs
 #include "engine/renderer/Texture2D.hpp"
@@ -29,15 +30,18 @@ class ResourceRegistry {
   ShaderHandle registerShader(const Ref<Shader>& shader);
   MeshHandle registerMesh(const Ref<VertexArray>& mesh);
   MaterialHandle registerMaterial(const Material& material);
+  ModelHandle registerModel(const Model& model);
 
   const Ref<Shader>& shader(ShaderHandle handle) const;
   const Ref<VertexArray>& mesh(MeshHandle handle) const;
   const Material& material(MaterialHandle handle) const;
+  const Model& model(ModelHandle handle) const;
 
  private:
   std::vector<Ref<Shader>> m_shaders;
   std::vector<Ref<VertexArray>> m_meshes;
   std::vector<Material> m_materials;
+  std::vector<Model> m_models;
 };
 
 }  // namespace engine

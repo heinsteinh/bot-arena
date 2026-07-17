@@ -4,10 +4,10 @@
 #include <string>
 #include <vector>
 
-#include "engine/assets/ModelLoader.hpp"
 #include "engine/core/Layer.hpp"
-#include "engine/renderer/OrbitCameraController.hpp"
 #include "engine/renderer/RenderCommand.hpp"
+#include "engine/scene/Scene.hpp"
+#include "engine/scene/SceneObject.hpp"
 
 namespace models {
 
@@ -19,14 +19,18 @@ class ModelsGame final : public engine::Layer {
   void onImGuiRender() override;
 
  private:
-  engine::OrbitCameraController m_camera;
+  engine::Scene m_scene;
+  engine::SceneObject m_camera;
+  engine::SceneObject m_ground;
+  engine::SceneObject m_model;  // the displayed model entity
   bool m_resourcesReady = false;
   engine::MaterialHandle m_groundMat = 0;
 
   struct Entry {
     std::string name;
     std::string path;
-    engine::Model model;
+    engine::ModelHandle handle = 0;
+    bool valid = false;
   };
   std::vector<Entry> m_entries;
   int m_selected = 0;

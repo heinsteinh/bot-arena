@@ -2,23 +2,11 @@
 #define ENGINE_ASSETS_MODELLOADER_HPP
 
 #include <string>
-#include <vector>
 
-#include "engine/assets/MeshBounds.hpp"
+#include "engine/assets/Model.hpp"
 #include "engine/renderer/ResourceRegistry.hpp"
 
 namespace engine {
-
-struct Submesh {
-  MeshHandle mesh = 0;
-  MaterialHandle material = 0;
-};
-
-struct Model {
-  std::vector<Submesh> submeshes;
-  AABB bounds{};
-  bool valid = false;
-};
 
 // Load a mesh file via Assimp: one position+normal mesh per sub-mesh, each with
 // a material coloured from the file's diffuse colour. Returns {valid=false} on

@@ -2,20 +2,49 @@
 
 #include <imgui.h>
 
-#include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtc/quaternion.hpp>
 #include <vector>
 
-#include "engine/assets/MeshBounds.hpp"
+#include "engine/assets/ModelLoader.hpp"
 #include "engine/core/AssetPath.hpp"
-#include "engine/renderer/MeshRenderer.hpp"
 #include "engine/renderer/PointLight.hpp"
+#include "engine/renderer/Renderer.hpp"
 #include "engine/renderer/ResourceRegistry.hpp"
+#include "engine/scene/Components.hpp"
+#include "engine/scene/ControllerComponents.hpp"
+#include "engine/scene/MeshComponent.hpp"
+#include "engine/scene/ModelComponent.hpp"
 
 namespace models {
 
 void ModelsGame::onAttach() {
-  m_camera.setTarget({0.0f, 0.4f, 0.0f});
-  m_camera.setOrbit(35.0f, 20.0f, 3.5f);
+  m_camera = m_scene.createObject("Camera");
+  engine::CameraComponent& cam =
+      m_camera.addComponent<engine::CameraComponent>();
+  cam.fov =
+      60.0f;  // matches old OrbitCameraController default (m_fovDegrees=60)
+  cam.perspNear = 0.1f;
+  cam.perspFar = 100.0f;
+  engine::OrbitControllerComponent& oc =
+      m_camera.addComponent<engine::OrbitControllerComponent>();
+  oc.targetPoint = {0.0f, 0.4f, 0.0f};
+  // Orbit yaw convention: OrbitControllerComponent's orbitPosition yields
+  // pos = center + d*(cosP*sinY, sinP, cosP*cosY); the old setOrbit yielded
+  // pos = center + d*(cosP*cosYold, sinP, cosP*sinYold). Matching them gives
+  // Ynew = 90 - Yold (NOT Yold + 90 -- that only coincides at Yold=0). So the
+  // old setOrbit(35, 20, 3.5) maps to yaw = 90 - 35 = 55.
+  oc.yaw = 55.0f;
+  oc.pitch = 20.0f;  // elevation above target
+  oc.distance = 3.5f;
+  oc.maxDistance = 40.0f;
+
+  m_ground = m_scene.createObject("Ground");
+  engine::TransformComponent& gt =
+      m_ground.getComponent<engine::TransformComponent>();
+  gt.translation = {0.0f, -0.55f, 0.0f};
+  gt.scale = {8.0f, 0.05f, 8.0f};
+
+  m_model = m_scene.createObject("Model");  // ModelComponent attached lazily
 
   const char* files[][2] = {
       {"Planet", "Objects/Planet/planet.obj"},
@@ -28,32 +57,47 @@ void ModelsGame::onAttach() {
       {"Statue", "meshes/statue.obj"},
   };
   for (const auto& f : files) {
-    m_entries.push_back({f[0], f[1], engine::Model{}});
+    m_entries.push_back({f[0], f[1], 0, false});
   }
 }
 
 void ModelsGame::onUpdate(float dt) {
-  m_camera.update(dt);
+  m_scene.update(dt);  // drives the camera's OrbitControllerComponent
   if (m_autoRotate) m_angle += dt * 0.6f;
+  m_model.getComponent<engine::TransformComponent>().rotation =
+      glm::angleAxis(m_angle, glm::vec3(0.0f, 1.0f, 0.0f));
 }
 
 void ModelsGame::onRender(engine::Renderer& renderer, int width, int height) {
   if (!m_resourcesReady) {
     const engine::ShaderHandle s = renderer.meshShader();
-    m_groundMat = renderer.registry().registerMaterial(
-        {{0.14f, 0.15f, 0.18f, 1.0f}, 0.0f, 0.9f, s});
+    engine::ResourceRegistry& reg = renderer.registry();
+    m_groundMat =
+        reg.registerMaterial({{0.14f, 0.15f, 0.18f, 1.0f}, 0.0f, 0.9f, s});
+    m_ground.addComponent<engine::MeshComponent>(
+        engine::MeshComponent{renderer.unitCubeMesh(), m_groundMat});
     for (Entry& e : m_entries) {
-      e.model =
-          engine::loadModel(engine::assetPath(e.path), renderer.registry(), s);
+      const engine::Model m =
+          engine::loadModel(engine::assetPath(e.path), reg, s);
+      e.valid = m.valid;
+      e.handle = reg.registerModel(m);
     }
+    // Attach the model component pointing at the initially selected entry.
+    m_model.addComponent<engine::ModelComponent>(
+        engine::ModelComponent{m_entries[m_selected].handle});
     m_resourcesReady = true;
+  }
+
+  // Track the ImGui selection (mutate the handle in place, no re-create).
+  if (m_selected >= 0 && m_selected < static_cast<int>(m_entries.size()) &&
+      m_entries[m_selected].valid) {
+    m_model.getComponent<engine::ModelComponent>().model =
+        m_entries[m_selected].handle;
   }
 
   const float aspect =
       height > 0 ? static_cast<float>(width) / static_cast<float>(height)
                  : 1.0f;
-  m_camera.resize(aspect);
-  renderer.setCamera(m_camera.camera());
 
   std::vector<engine::PointLight> lights;
   engine::PointLight key;
@@ -62,23 +106,7 @@ void ModelsGame::onRender(engine::Renderer& renderer, int width, int height) {
   lights.push_back(key);
   renderer.setPointLights(lights);
 
-  const engine::MeshHandle cube = renderer.unitCubeMesh();
-  engine::MeshRenderer meshes(renderer.queue(), renderer.registry(),
-                              m_camera.camera());
-
-  glm::mat4 ground = glm::translate(glm::mat4(1.0f), {0.0f, -0.55f, 0.0f});
-  ground = glm::scale(ground, {8.0f, 0.05f, 8.0f});
-  meshes.submit(cube, m_groundMat, ground);
-
-  if (m_selected >= 0 && m_selected < static_cast<int>(m_entries.size()) &&
-      m_entries[m_selected].model.valid) {
-    const engine::Model& model = m_entries[m_selected].model;
-    glm::mat4 m = glm::rotate(glm::mat4(1.0f), m_angle, {0.0f, 1.0f, 0.0f});
-    m = m * engine::fitToUnitTransform(model.bounds);
-    for (const engine::Submesh& sm : model.submeshes) {
-      meshes.submit(sm.mesh, sm.material, m);
-    }
-  }
+  m_scene.render(renderer, aspect);
 }
 
 void ModelsGame::onImGuiRender() {
@@ -86,7 +114,7 @@ void ModelsGame::onImGuiRender() {
   ImGui::SetNextWindowSize(ImVec2(300, 200), ImGuiCond_FirstUseEver);
   ImGui::Begin("Model Viewer");
   for (int i = 0; i < static_cast<int>(m_entries.size()); ++i) {
-    const bool ok = m_entries[i].model.valid;
+    const bool ok = m_entries[i].valid;
     if (ImGui::RadioButton(m_entries[i].name.c_str(), m_selected == i) && ok) {
       m_selected = i;
     }

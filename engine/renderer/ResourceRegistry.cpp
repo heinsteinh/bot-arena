@@ -29,4 +29,13 @@ const Material& ResourceRegistry::material(MaterialHandle handle) const {
   return m_materials[handle];
 }
 
+ModelHandle ResourceRegistry::registerModel(const Model& model) {
+  m_models.push_back(model);
+  return static_cast<ModelHandle>(m_models.size() - 1);
+}
+
+const Model& ResourceRegistry::model(ModelHandle handle) const {
+  return m_models[handle];
+}
+
 }  // namespace engine
