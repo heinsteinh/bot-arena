@@ -165,6 +165,7 @@ add_executable(
   tests/test_font_manager.cpp
   tests/test_text_batch.cpp
   tests/test_scene.cpp
+  tests/test_model_transform.cpp
   engine/core/Arena.cpp
   engine/core/Input.cpp
   engine/particles/ParticleSystem.cpp
