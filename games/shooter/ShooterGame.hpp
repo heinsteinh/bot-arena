@@ -2,9 +2,7 @@
 #define GAMES_SHOOTER_SHOOTERGAME_HPP
 
 #include <entt/entt.hpp>
-#include <optional>
 #include <random>
-#include <unordered_map>
 #include <vector>
 
 #include "engine/assets/ModelLoader.hpp"
@@ -28,18 +26,10 @@ class ShooterGame final : public engine::Layer {
   void spawnEnemy();
   void destroyActor(entt::entity e);
 
-  // Ship/bullet models are multi-submesh, but MeshComponent only holds one
-  // mesh+material pair, so each submesh gets its own render-only proxy
-  // SceneObject. attachVisual creates those proxies once per owner;
-  // syncVisual re-derives their shared transform from the owner's
-  // TransformComponent every frame (owner never gets a MeshComponent
-  // itself).
-  void attachVisual(entt::entity owner, const engine::Model& model,
-                    std::optional<engine::MaterialHandle> materialOverride);
-  void syncVisual(entt::entity owner, const engine::Model& model,
-                  float extraYaw);
-  void attachMissingVisuals();
-  void syncAllVisuals();
+  // Ships/enemies/bullets spawn during the onAttach warm-up (before models are
+  // registered in onRender), so their ModelComponent is attached lazily: this
+  // adds one to any actor still missing it, once resources are ready.
+  void attachMissingModels();
 
   engine::Scene m_scene;
   engine::SceneObject m_camera;
@@ -53,15 +43,13 @@ class ShooterGame final : public engine::Layer {
 
   bool m_resourcesReady = false;
   engine::MaterialHandle m_groundMat = 0;
-  engine::Model m_playerModel;
-  engine::Model m_enemyModels[3];
-  engine::Model m_bulletModel;
+  engine::ModelHandle m_playerModel = 0;
+  engine::ModelHandle m_enemyModels[3] = {0, 0, 0};
+  engine::ModelHandle m_bulletModel = 0;
   engine::MaterialHandle m_playerBulletMat = 0;
   engine::MaterialHandle m_enemyBulletMat = 0;
   engine::FontHandle m_font;
   engine::ParticleSystem m_explosions;
-
-  std::unordered_map<entt::entity, std::vector<entt::entity>> m_visualParts;
 
   static constexpr float kPlayerSpeed = 6.0f;
   static constexpr float kBulletSpeed = 16.0f;
