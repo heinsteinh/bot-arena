@@ -9,6 +9,7 @@ namespace engine {
 using ShaderHandle = uint16_t;
 using MeshHandle = uint16_t;
 using MaterialHandle = uint16_t;
+using ModelHandle = uint16_t;
 
 enum class RenderLayer : uint8_t { Grid = 0, Opaque = 1, Debug = 2, UI = 3 };
 enum class RenderCommandType : uint8_t { Line, Cube, Mesh };

@@ -1,4 +1,5 @@
 #include <catch2/catch_test_macros.hpp>
+#include <glm/glm.hpp>
 
 #include "engine/renderer/ResourceRegistry.hpp"
 
@@ -49,4 +50,28 @@ TEST_CASE("registerMesh/Shader hand out stable increasing handles",
   REQUIRE(reg.registerMesh(nullptr) == 1);
   REQUIRE(reg.shader(0) == nullptr);
   REQUIRE(reg.mesh(1) == nullptr);
+}
+
+TEST_CASE("registerModel hands out increasing handles and stores the model",
+          "[registry]") {
+  ResourceRegistry reg;
+  engine::Model a;
+  a.submeshes = {{3, 4}, {5, 6}};  // {mesh, material} pairs
+  a.bounds.min = {-1, -2, -3};
+  a.bounds.max = {1, 2, 3};
+  a.valid = true;
+  engine::Model b;
+  b.submeshes = {{7, 8}};
+
+  const engine::ModelHandle h0 = reg.registerModel(a);
+  const engine::ModelHandle h1 = reg.registerModel(b);
+
+  REQUIRE(h0 == 0);
+  REQUIRE(h1 == 1);
+  REQUIRE(reg.model(h0).submeshes.size() == 2);
+  REQUIRE(reg.model(h0).submeshes[1].mesh == 5);
+  REQUIRE(reg.model(h0).submeshes[1].material == 6);
+  REQUIRE(reg.model(h0).bounds.max == glm::vec3(1, 2, 3));
+  REQUIRE(reg.model(h0).valid == true);
+  REQUIRE(reg.model(h1).submeshes.size() == 1);
 }
