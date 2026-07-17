@@ -43,6 +43,8 @@ class Renderer {
     m_camera = makeCameraUniforms(camera.view(), camera.projection());
   }
 
+  void setCamera(const CameraUniforms& uniforms) { m_camera = uniforms; }
+
   void setLightDirection(const glm::vec3& dir) { m_lightDir = dir; }
 
   void setPointLights(const std::vector<PointLight>& lights);
