@@ -4,7 +4,6 @@
 #include <glm/gtc/quaternion.hpp>
 
 #include "engine/core/Input.hpp"
-#include "engine/scene/CameraControllerSystems.hpp"
 #include "engine/scene/CameraMath.hpp"
 #include "engine/scene/Components.hpp"
 #include "engine/scene/ControllerComponents.hpp"
@@ -262,6 +261,7 @@ TEST_CASE("fly controller W moves along planar forward", "[controller]") {
   REQUIRE(p.z == Catch::Approx(-10.0f).margin(1e-3));  // forward at yaw=0 is -Z
   REQUIRE(p.x == Catch::Approx(0.0f).margin(1e-3));
   engine::Input::setKey(engine::Key::W, false);
+  engine::Input::beginFrame();
 }
 
 TEST_CASE("follow controller sits at target + offset facing target",
