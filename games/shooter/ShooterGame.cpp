@@ -1,11 +1,11 @@
 #include "games/shooter/ShooterGame.hpp"
 
-#include <algorithm>
 #include <cmath>
 #include <glm/gtc/quaternion.hpp>
 #include <vector>
 
 #include "engine/ai/Steering.hpp"
+#include "engine/assets/ModelLoader.hpp"
 #include "engine/core/AssetPath.hpp"
 #include "engine/core/Input.hpp"
 #include "engine/gameplay/Combat.hpp"
