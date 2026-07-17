@@ -2,6 +2,7 @@
 
 #include <string>
 
+#include "engine/scene/CameraControllerSystems.hpp"
 #include "engine/scene/Components.hpp"
 #include "engine/scene/SceneCamera.hpp"
 #include "engine/scene/SceneObject.hpp"
@@ -39,6 +40,13 @@ CameraUniforms Scene::cameraUniforms(float aspect) const {
     return makeCameraUniforms(viewMatrix(tf), projectionMatrix(cam, aspect));
   }
   return makeCameraUniforms(glm::mat4(1.0f), glm::mat4(1.0f));
+}
+
+void Scene::update(float dt) {
+  updateFlyControllers(m_registry, dt);
+  updateOrbitControllers(m_registry, dt);
+  updateFollowControllers(m_registry, dt);
+  updateCamera2DControllers(m_registry, dt);
 }
 
 }  // namespace engine

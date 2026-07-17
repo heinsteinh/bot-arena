@@ -62,6 +62,7 @@ add_library(bot_arena_engine STATIC
     engine/renderer/CommandBufferPool.cpp
 
     engine/scene/Scene.cpp
+    engine/scene/CameraControllerSystems.cpp
 )
 
 target_include_directories(bot_arena_engine
@@ -198,6 +199,7 @@ add_executable(bot_arena_tests
     tests/test_scene.cpp
 
     engine/core/Arena.cpp
+    engine/core/Input.cpp
     engine/particles/ParticleSystem.cpp
     engine/core/JobSystem.cpp
     engine/renderer/RenderQueue.cpp
@@ -207,6 +209,7 @@ add_executable(bot_arena_tests
     engine/renderer/text/FontManager.cpp
     engine/renderer/text/TextRenderer.cpp
     engine/scene/Scene.cpp
+    engine/scene/CameraControllerSystems.cpp
 )
 
 target_include_directories(bot_arena_tests

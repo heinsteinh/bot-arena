@@ -3,8 +3,11 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/quaternion.hpp>
 
+#include "engine/core/Input.hpp"
+#include "engine/scene/CameraControllerSystems.hpp"
 #include "engine/scene/CameraMath.hpp"
 #include "engine/scene/Components.hpp"
+#include "engine/scene/ControllerComponents.hpp"
 #include "engine/scene/Scene.hpp"
 #include "engine/scene/SceneCamera.hpp"
 #include "engine/scene/SceneObject.hpp"
@@ -200,4 +203,106 @@ TEST_CASE("orbitPosition sits distance from center along -forward",
       engine::forwardDir(engine::orientationFromYawPitch(45.0f, 30.0f));
   REQUIRE(glm::length((pos + fwd * 10.0f) - center) ==
           Catch::Approx(0.0f).margin(1e-3));
+}
+
+TEST_CASE("orbit controller sets pose from params (no input)", "[controller]") {
+  engine::Input::beginFrame();
+  engine::Scene scene;
+  engine::SceneObject cam = scene.createObject("Cam");
+  engine::OrbitControllerComponent& oc =
+      cam.addComponent<engine::OrbitControllerComponent>();
+  oc.targetPoint = {0.0f, 1.0f, 0.0f};
+  oc.yaw = 45.0f;
+  oc.pitch = 30.0f;
+  oc.distance = 10.0f;
+  scene.update(0.016f);
+  const engine::TransformComponent& t =
+      cam.getComponent<engine::TransformComponent>();
+  const glm::vec3 want = engine::orbitPosition({0, 1, 0}, 45.0f, 30.0f, 10.0f);
+  REQUIRE(t.translation.x == Catch::Approx(want.x).margin(1e-4));
+  REQUIRE(t.translation.y == Catch::Approx(want.y).margin(1e-4));
+  REQUIRE(t.translation.z == Catch::Approx(want.z).margin(1e-4));
+}
+
+TEST_CASE("orbit controller left-drag changes yaw", "[controller]") {
+  engine::Input::beginFrame();
+  engine::Input::setMouseButton(engine::MouseButton::Left, true);
+  engine::Input::setMouseDelta(40.0f, 0.0f);
+  engine::Scene scene;
+  engine::SceneObject cam = scene.createObject("Cam");
+  engine::OrbitControllerComponent& oc =
+      cam.addComponent<engine::OrbitControllerComponent>();
+  const float y0 = oc.yaw;
+  scene.update(0.016f);
+  REQUIRE(cam.getComponent<engine::OrbitControllerComponent>().yaw ==
+          Catch::Approx(y0 + 40.0f * oc.rotateSpeed).margin(1e-3));
+  engine::Input::setMouseButton(engine::MouseButton::Left, false);
+  engine::Input::beginFrame();
+}
+
+TEST_CASE("fly controller W moves along planar forward", "[controller]") {
+  engine::Input::beginFrame();
+  engine::Input::setKey(engine::Key::W, true);
+  engine::Scene scene;
+  engine::SceneObject cam = scene.createObject("Cam");
+  engine::FlyControllerComponent& fc =
+      cam.addComponent<engine::FlyControllerComponent>();
+  fc.yaw = 0.0f;
+  fc.pitch = 0.0f;
+  fc.moveSpeed = 10.0f;
+  cam.getComponent<engine::TransformComponent>().translation = {0, 0, 0};
+  scene.update(1.0f);
+  const glm::vec3 p =
+      cam.getComponent<engine::TransformComponent>().translation;
+  REQUIRE(p.z == Catch::Approx(-10.0f).margin(1e-3));  // forward at yaw=0 is -Z
+  REQUIRE(p.x == Catch::Approx(0.0f).margin(1e-3));
+  engine::Input::setKey(engine::Key::W, false);
+}
+
+TEST_CASE("follow controller sits at target + offset facing target",
+          "[controller]") {
+  engine::Input::beginFrame();
+  engine::Scene scene;
+  engine::SceneObject target = scene.createObject("Target");
+  target.getComponent<engine::TransformComponent>().translation = {5, 0, -3};
+  engine::SceneObject cam = scene.createObject("Cam");
+  engine::FollowControllerComponent& fc =
+      cam.addComponent<engine::FollowControllerComponent>();
+  fc.target = static_cast<entt::entity>(target);
+  fc.offset = {0, 4, 9};
+  scene.update(0.016f);
+  const engine::TransformComponent& t =
+      cam.getComponent<engine::TransformComponent>();
+  REQUIRE(t.translation.x == Catch::Approx(5.0f).margin(1e-4));
+  REQUIRE(t.translation.y == Catch::Approx(4.0f).margin(1e-4));
+  REQUIRE(t.translation.z == Catch::Approx(6.0f).margin(1e-4));
+  // forward points from camera toward the target
+  const glm::vec3 f = engine::forwardDir(t.rotation);
+  const glm::vec3 toTarget =
+      glm::normalize(glm::vec3(5, 0, -3) - t.translation);
+  REQUIRE(f.x == Catch::Approx(toTarget.x).margin(1e-3));
+  REQUIRE(f.z == Catch::Approx(toTarget.z).margin(1e-3));
+}
+
+TEST_CASE("camera2D pans with keys and zooms with scroll", "[controller]") {
+  engine::Input::beginFrame();
+  engine::Input::setKey(engine::Key::D, true);
+  engine::Input::setScrollDelta(0.0f, 1.0f);
+  engine::Scene scene;
+  engine::SceneObject cam = scene.createObject("Cam");
+  cam.getComponent<engine::TransformComponent>().translation = {0, 20, 0};
+  engine::CameraComponent& cc = cam.addComponent<engine::CameraComponent>();
+  cc.type = engine::ProjectionType::Orthographic;
+  cc.orthoSize = 20.0f;
+  engine::Camera2DControllerComponent& c2 =
+      cam.addComponent<engine::Camera2DControllerComponent>();
+  scene.update(1.0f);
+  const engine::TransformComponent& t =
+      cam.getComponent<engine::TransformComponent>();
+  REQUIRE(t.translation.x ==
+          Catch::Approx(c2.panSpeed).margin(1e-3));  // D -> +X
+  REQUIRE(cam.getComponent<engine::CameraComponent>().orthoSize <
+          20.0f);  // scroll up zooms in
+  engine::Input::setKey(engine::Key::D, false);
+  engine::Input::beginFrame();
 }

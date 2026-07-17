@@ -29,6 +29,8 @@ class Scene {
   SceneObject primaryCamera();
   CameraUniforms cameraUniforms(float aspect) const;
 
+  void update(float dt);
+
   entt::registry& registry() { return m_registry; }
   const entt::registry& registry() const { return m_registry; }
 
