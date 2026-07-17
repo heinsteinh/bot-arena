@@ -58,7 +58,7 @@ void updateOrbitControllers(entt::registry& registry, float dt) {
         registry.all_of<TransformComponent>(oc.target))
       center = registry.get<TransformComponent>(oc.target).translation;
     t.translation = orbitPosition(center, oc.yaw, oc.pitch, oc.distance);
-    t.rotation = orientationFromYawPitch(oc.yaw, oc.pitch);
+    t.rotation = lookRotation(center - t.translation);
   }
 }
 

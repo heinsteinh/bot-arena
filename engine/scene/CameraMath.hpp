@@ -31,12 +31,12 @@ inline glm::quat lookRotation(const glm::vec3& forward,
   return glm::quat_cast(glm::mat3(r, u, -f));
 }
 
-// Camera position orbiting `center` at `distance` along the yaw/pitch
-// direction.
+// Camera position orbiting `center`: pitchDeg is the elevation above the
+// target (positive = camera higher, looking down), yawDeg the azimuth.
 inline glm::vec3 orbitPosition(const glm::vec3& center, float yawDeg,
                                float pitchDeg, float distance) {
   return center -
-         forwardDir(orientationFromYawPitch(yawDeg, pitchDeg)) * distance;
+         forwardDir(orientationFromYawPitch(yawDeg, -pitchDeg)) * distance;
 }
 
 }  // namespace engine

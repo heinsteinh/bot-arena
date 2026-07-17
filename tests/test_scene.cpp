@@ -193,16 +193,14 @@ TEST_CASE("lookRotation view matches glm::lookAt", "[cameramath]") {
       REQUIRE(got[c][r] == Catch::Approx(want[c][r]).margin(1e-4));
 }
 
-TEST_CASE("orbitPosition sits distance from center along -forward",
+TEST_CASE("orbitPosition sits distance from center with positive pitch above",
           "[cameramath]") {
   const glm::vec3 center(0.0f, 1.0f, 0.0f);
   const glm::vec3 pos = engine::orbitPosition(center, 45.0f, 30.0f, 10.0f);
   REQUIRE(glm::length(pos - center) == Catch::Approx(10.0f).margin(1e-4));
-  // camera looks from pos back toward center
-  const glm::vec3 fwd =
-      engine::forwardDir(engine::orientationFromYawPitch(45.0f, 30.0f));
-  REQUIRE(glm::length((pos + fwd * 10.0f) - center) ==
-          Catch::Approx(0.0f).margin(1e-3));
+  // positive pitch puts the camera ABOVE the target (elevation)
+  const glm::vec3 elevated = engine::orbitPosition(center, 0.0f, 30.0f, 10.0f);
+  REQUIRE(elevated.y > center.y);
 }
 
 TEST_CASE("orbit controller sets pose from params (no input)", "[controller]") {
@@ -218,10 +216,17 @@ TEST_CASE("orbit controller sets pose from params (no input)", "[controller]") {
   scene.update(0.016f);
   const engine::TransformComponent& t =
       cam.getComponent<engine::TransformComponent>();
-  const glm::vec3 want = engine::orbitPosition({0, 1, 0}, 45.0f, 30.0f, 10.0f);
+  const glm::vec3 center = oc.targetPoint;
+  const glm::vec3 want = engine::orbitPosition(center, 45.0f, 30.0f, 10.0f);
   REQUIRE(t.translation.x == Catch::Approx(want.x).margin(1e-4));
   REQUIRE(t.translation.y == Catch::Approx(want.y).margin(1e-4));
   REQUIRE(t.translation.z == Catch::Approx(want.z).margin(1e-4));
+  // positive pitch = camera elevated above the target
+  REQUIRE(t.translation.y > center.y);
+  // rotation looks from the camera toward the orbit center
+  const glm::vec3 wantFwd = glm::normalize(center - t.translation);
+  const glm::vec3 gotFwd = engine::forwardDir(t.rotation);
+  REQUIRE(glm::length(gotFwd - wantFwd) == Catch::Approx(0.0f).margin(1e-3));
 }
 
 TEST_CASE("orbit controller left-drag changes yaw", "[controller]") {

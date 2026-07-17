@@ -79,7 +79,7 @@ void ControllerDemoGame::setController(int index) {
         m_camera.addComponent<engine::OrbitControllerComponent>();
     oc.targetPoint = sceneCenter;
     oc.yaw = 40.0f;
-    oc.pitch = -25.0f;  // negative = looking down from above
+    oc.pitch = 25.0f;
     oc.distance = 16.0f;
   } else if (m_controller == 2) {
     engine::FollowControllerComponent& fc =
