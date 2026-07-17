@@ -19,7 +19,7 @@ void SceneDemoGame::onAttach() {
   engine::TransformComponent& ct =
       m_camera.getComponent<engine::TransformComponent>();
   ct.translation = {0.0f, 4.0f, 9.0f};
-  ct.rotation = {glm::radians(-24.0f), 0.0f, 0.0f};
+  ct.rotation = glm::quat(glm::vec3(glm::radians(-24.0f), 0.0f, 0.0f));
   engine::CameraComponent cam;
   cam.type = engine::ProjectionType::Perspective;
   cam.fov = 55.0f;
