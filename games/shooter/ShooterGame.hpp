@@ -2,14 +2,18 @@
 #define GAMES_SHOOTER_SHOOTERGAME_HPP
 
 #include <entt/entt.hpp>
+#include <optional>
 #include <random>
+#include <unordered_map>
+#include <vector>
 
 #include "engine/assets/ModelLoader.hpp"
 #include "engine/core/Layer.hpp"
 #include "engine/particles/ParticleSystem.hpp"
-#include "engine/renderer/OrbitCameraController.hpp"
 #include "engine/renderer/RenderCommand.hpp"
 #include "engine/renderer/text/FontAsset.hpp"
+#include "engine/scene/Scene.hpp"
+#include "engine/scene/SceneObject.hpp"
 
 namespace shooter {
 
@@ -22,9 +26,24 @@ class ShooterGame final : public engine::Layer {
  private:
   void stepSim(float dt);
   void spawnEnemy();
+  void destroyActor(entt::entity e);
 
-  engine::OrbitCameraController m_camera;
-  entt::registry m_registry;
+  // Ship/bullet models are multi-submesh, but MeshComponent only holds one
+  // mesh+material pair, so each submesh gets its own render-only proxy
+  // SceneObject. attachVisual creates those proxies once per owner;
+  // syncVisual re-derives their shared transform from the owner's
+  // TransformComponent every frame (owner never gets a MeshComponent
+  // itself).
+  void attachVisual(entt::entity owner, const engine::Model& model,
+                    std::optional<engine::MaterialHandle> materialOverride);
+  void syncVisual(entt::entity owner, const engine::Model& model,
+                  float extraYaw);
+  void attachMissingVisuals();
+  void syncAllVisuals();
+
+  engine::Scene m_scene;
+  engine::SceneObject m_camera;
+  engine::SceneObject m_ground;
   std::mt19937 m_rng{2025};
   float m_accumulator = 0.0f;
   float m_fireTimer = 0.0f;
@@ -41,6 +60,8 @@ class ShooterGame final : public engine::Layer {
   engine::MaterialHandle m_enemyBulletMat = 0;
   engine::FontHandle m_font;
   engine::ParticleSystem m_explosions;
+
+  std::unordered_map<entt::entity, std::vector<entt::entity>> m_visualParts;
 
   static constexpr float kPlayerSpeed = 6.0f;
   static constexpr float kBulletSpeed = 16.0f;
@@ -63,6 +84,9 @@ class ShooterGame final : public engine::Layer {
   static constexpr float kEnemyBulletDamage = 10.0f;
   static constexpr float kRamDamage = 25.0f;
   static constexpr int kLives = 3;
+  // The ship models point opposite their heading, so render them rotated
+  // 180 degrees relative to the game's facing yaw.
+  static constexpr float kShipYaw = 3.1415927f;
 };
 
 }  // namespace shooter

@@ -5,14 +5,13 @@
 #include <string>
 
 #include "engine/core/Input.hpp"
-#include "engine/renderer/MatrixCamera.hpp"
-#include "engine/renderer/MeshRenderer.hpp"
 #include "engine/renderer/Renderer.hpp"
 #include "engine/renderer/text/FontDesc.hpp"
 #include "engine/renderer/text/TextPlacement.hpp"
 #include "engine/renderer/text/TextStyle.hpp"
 #include "engine/scene/Components.hpp"
 #include "engine/scene/ControllerComponents.hpp"
+#include "engine/scene/MeshComponent.hpp"
 
 namespace controllerdemo {
 
@@ -113,6 +112,13 @@ void ControllerDemoGame::ensureResources(engine::Renderer& renderer) {
       {{0.45f, 0.47f, 0.5f, 1.0f}, 0.0f, 0.9f, s});
   m_cubeMat = renderer.registry().registerMaterial(
       {{0.72f, 0.36f, 0.30f, 1.0f}, 0.0f, 0.6f, s});
+
+  const engine::MeshHandle cube = renderer.unitCubeMesh();
+  for (size_t i = 0; i < m_visuals.size(); ++i) {
+    const engine::MaterialHandle mat = i == 0 ? m_groundMat : m_cubeMat;
+    m_visuals[i].addComponent<engine::MeshComponent>(
+        engine::MeshComponent{cube, mat});
+  }
   m_ready = true;
 }
 
@@ -132,19 +138,9 @@ void ControllerDemoGame::onRender(engine::Renderer& renderer, int width,
   const float aspect =
       height > 0 ? static_cast<float>(width) / static_cast<float>(height)
                  : 1.0f;
-  const engine::CameraUniforms cu = m_scene.cameraUniforms(aspect);
-  renderer.setCamera(cu);
   renderer.setLightDirection(glm::normalize(glm::vec3(0.5f, 0.7f, 0.35f)));
   renderer.setPointLights({});
-
-  const engine::MeshHandle cube = renderer.unitCubeMesh();
-  engine::MatrixCamera meshCam(cu.view, cu.projection);
-  engine::MeshRenderer meshes(renderer.queue(), renderer.registry(), meshCam);
-  for (size_t i = 0; i < m_visuals.size(); ++i)
-    meshes.submit(cube, i == 0 ? m_groundMat : m_cubeMat,
-                  m_visuals[i]
-                      .getComponent<engine::TransformComponent>()
-                      .localTransform());
+  m_scene.render(renderer, aspect);
 
   if (m_font) {
     engine::TextStyle st;

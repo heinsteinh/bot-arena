@@ -3,7 +3,6 @@
 #include <spdlog/spdlog.h>
 
 #include <cmath>
-#include <glm/gtc/matrix_transform.hpp>
 #include <random>
 #include <string>
 #include <vector>
@@ -13,19 +12,35 @@
 #include "engine/core/Input.hpp"
 #include "engine/gameplay/Combat.hpp"
 #include "engine/physics/Collision.hpp"
-#include "engine/renderer/MeshRenderer.hpp"
 #include "engine/renderer/PointLight.hpp"
 #include "engine/renderer/ResourceRegistry.hpp"
 #include "engine/renderer/text/FontDesc.hpp"
 #include "engine/renderer/text/TextPlacement.hpp"
 #include "engine/renderer/text/TextStyle.hpp"
+#include "engine/scene/Components.hpp"
+#include "engine/scene/ControllerComponents.hpp"
+#include "engine/scene/MeshComponent.hpp"
 #include "games/arena/Components.hpp"
 
 namespace arena {
 
 void ArenaGame::onAttach() {
-  m_camera.setTarget({0.0f, 0.5f, 0.0f});
-  m_camera.setOrbit(45.0f, 55.0f, 18.0f);
+  m_camera = m_scene.createObject("Camera");
+  engine::CameraComponent& cam =
+      m_camera.addComponent<engine::CameraComponent>();
+  // Match the old OrbitCameraController's perspective (60 deg FOV, 0.1/100
+  // clip) so the framing is unchanged.
+  cam.fov = 60.0f;
+  cam.perspNear = 0.1f;
+  cam.perspFar = 100.0f;
+  engine::OrbitControllerComponent& oc =
+      m_camera.addComponent<engine::OrbitControllerComponent>();
+  oc.targetPoint = {0.0f, 0.5f, 0.0f};
+  oc.yaw = 45.0f;
+  oc.pitch = 55.0f;  // elevation above target, same convention as before
+  oc.distance = 18.0f;
+  oc.maxDistance = 40.0f;
+
   spawnEntities();
   // Deterministic warm-up so a single-frame (headless screenshot) capture shows
   // a genuinely simulated state — bots advanced along their velocities and some
@@ -33,37 +48,68 @@ void ArenaGame::onAttach() {
   // stays.
   for (int i = 0; i < 300; ++i) stepSim(1.0f / 60.0f);
 
-  for (const entt::entity e : m_registry.view<Health, Player>()) {
+  entt::registry& reg = m_scene.registry();
+  for (const entt::entity e : reg.view<Health, Player>()) {
     spdlog::info("arena: after warmup HP={} kills={} deaths={}",
-                 m_registry.get<Health>(e).current, m_kills, m_deaths);
+                 reg.get<Health>(e).current, m_kills, m_deaths);
   }
 }
 
 void ArenaGame::spawnEntities() {
-  const entt::entity player = m_registry.create();
-  m_registry.emplace<Transform>(player, glm::vec3(0.0f, 0.3f, 0.0f), 0.4f);
-  m_registry.emplace<Velocity>(player, glm::vec3(0.0f));
-  m_registry.emplace<Player>(player);
-  m_registry.emplace<Health>(player, kPlayerMaxHealth, kPlayerMaxHealth);
+  // Static walls + ground, reproducing the old translate*scale boxes exactly:
+  // the unit cube spans [-1, 1], so a wall of dimension `size` needs a scale
+  // of size * 0.5 (the ground submission never had that halving, so its
+  // scale is the literal size).
+  auto spawnWall = [this](const glm::vec3& center, const glm::vec3& size) {
+    engine::SceneObject o = m_scene.createObject("Wall");
+    engine::TransformComponent& t =
+        o.getComponent<engine::TransformComponent>();
+    t.translation = center;
+    t.scale = size * 0.5f;
+    m_walls.push_back(o);
+  };
+  spawnWall({0.0f, 0.5f, -5.0f}, {10.0f, 1.0f, 0.25f});
+  spawnWall({0.0f, 0.5f, 5.0f}, {10.0f, 1.0f, 0.25f});
+  spawnWall({-5.0f, 0.5f, 0.0f}, {0.25f, 1.0f, 10.0f});
+  spawnWall({5.0f, 0.5f, 0.0f}, {0.25f, 1.0f, 10.0f});
+
+  m_ground = m_scene.createObject("Ground");
+  engine::TransformComponent& gt =
+      m_ground.getComponent<engine::TransformComponent>();
+  gt.translation = {0.0f, -0.05f, 0.0f};
+  gt.scale = {20.0f, 0.05f, 20.0f};
+
+  engine::SceneObject player = m_scene.createObject("Player");
+  engine::TransformComponent& pt =
+      player.getComponent<engine::TransformComponent>();
+  pt.translation = {0.0f, 0.3f, 0.0f};
+  pt.scale = glm::vec3(0.4f);
+  player.addComponent<Velocity>(glm::vec3(0.0f));
+  // Player/Bot are empty tag types; entt's emplace() returns void (not T&)
+  // for those, so they can't go through SceneObject::addComponent<T>'s T&
+  // signature -- emplace them on the registry directly.
+  m_scene.registry().emplace<Player>(static_cast<entt::entity>(player));
+  player.addComponent<Health>(Health{kPlayerMaxHealth, kPlayerMaxHealth});
 
   std::uniform_real_distribution<float> posD(-4.0f, 4.0f);
   std::uniform_real_distribution<float> velD(-1.0f, 1.0f);
   for (int i = 0; i < 48; ++i) {
-    const entt::entity b = m_registry.create();
-    m_registry.emplace<Transform>(b, glm::vec3(posD(m_rng), 0.3f, posD(m_rng)),
-                                  0.3f);
+    engine::SceneObject b = m_scene.createObject("Bot");
+    engine::TransformComponent& bt =
+        b.getComponent<engine::TransformComponent>();
+    bt.translation = {posD(m_rng), 0.3f, posD(m_rng)};
+    bt.scale = glm::vec3(0.3f);
     glm::vec3 v(velD(m_rng), 0.0f, velD(m_rng));
     v = glm::length(v) > 0.001f ? glm::normalize(v) * 2.0f
                                 : glm::vec3(2.0f, 0.0f, 0.0f);
-    m_registry.emplace<Velocity>(b, v);
-    m_registry.emplace<Bot>(b);
-    m_registry.emplace<Health>(b, kBotMaxHealth, kBotMaxHealth);
+    b.addComponent<Velocity>(v);
+    m_scene.registry().emplace<Bot>(static_cast<entt::entity>(b));
+    b.addComponent<Health>(Health{kBotMaxHealth, kBotMaxHealth});
   }
 }
 
 void ArenaGame::onUpdate(float dt) {
-  m_camera.update(
-      dt);  // apply setTarget/setOrbit (and mouse orbit) to the view
+  m_scene.update(dt);  // drives the camera's OrbitControllerComponent
 
   m_accumulator += dt;
   const float step = 1.0f / 60.0f;
@@ -73,13 +119,15 @@ void ArenaGame::onUpdate(float dt) {
 }
 
 void ArenaGame::stepSim(float dt) {
+  entt::registry& reg = m_scene.registry();
+
   // Input -> player velocity (XZ plane).
   glm::vec3 dir(0.0f);
   if (engine::Input::isKeyDown(engine::Key::W)) dir.z -= 1.0f;
   if (engine::Input::isKeyDown(engine::Key::S)) dir.z += 1.0f;
   if (engine::Input::isKeyDown(engine::Key::A)) dir.x -= 1.0f;
   if (engine::Input::isKeyDown(engine::Key::D)) dir.x += 1.0f;
-  auto players = m_registry.view<Velocity, Player>();
+  auto players = reg.view<Velocity, Player>();
   for (const entt::entity e : players) {
     players.get<Velocity>(e).value = glm::length(dir) > 0.001f
                                          ? glm::normalize(dir) * 3.0f
@@ -88,41 +136,47 @@ void ArenaGame::stepSim(float dt) {
 
   // Bots seek the player.
   glm::vec3 playerPos(0.0f);
-  for (const entt::entity e : m_registry.view<Transform, Player>()) {
-    playerPos = m_registry.get<Transform>(e).position;
+  for (const entt::entity e : reg.view<engine::TransformComponent, Player>()) {
+    playerPos = reg.get<engine::TransformComponent>(e).translation;
   }
-  for (const entt::entity e : m_registry.view<Transform, Velocity, Bot>()) {
-    Transform& tr = m_registry.get<Transform>(e);
-    Velocity& v = m_registry.get<Velocity>(e);
-    const Health& h = m_registry.get<Health>(e);
-    const glm::vec3 force = engine::shouldFlee(h.current, h.max, kFleeFraction)
-                                ? engine::flee(tr.position, v.value, playerPos,
-                                               kBotMaxSpeed, kBotMaxForce)
-                                : engine::seek(tr.position, v.value, playerPos,
-                                               kBotMaxSpeed, kBotMaxForce);
+  for (const entt::entity e :
+       reg.view<engine::TransformComponent, Velocity, Bot>()) {
+    engine::TransformComponent& tr = reg.get<engine::TransformComponent>(e);
+    Velocity& v = reg.get<Velocity>(e);
+    const Health& h = reg.get<Health>(e);
+    const glm::vec3 force =
+        engine::shouldFlee(h.current, h.max, kFleeFraction)
+            ? engine::flee(tr.translation, v.value, playerPos, kBotMaxSpeed,
+                           kBotMaxForce)
+            : engine::seek(tr.translation, v.value, playerPos, kBotMaxSpeed,
+                           kBotMaxForce);
     v.value += force * dt;
     v.value = engine::truncate(v.value, kBotMaxSpeed);
   }
 
   // Integrate.
-  auto view = m_registry.view<Transform, Velocity>();
+  auto view = reg.view<engine::TransformComponent, Velocity>();
   for (const entt::entity e : view) {
-    view.get<Transform>(e).position += view.get<Velocity>(e).value * dt;
+    view.get<engine::TransformComponent>(e).translation +=
+        view.get<Velocity>(e).value * dt;
   }
 
   // Agent-vs-agent collision (O(n^2)).
   std::vector<entt::entity> agents(view.begin(), view.end());
   for (std::size_t i = 0; i < agents.size(); ++i) {
     for (std::size_t j = i + 1; j < agents.size(); ++j) {
-      Transform& ta = view.get<Transform>(agents[i]);
+      engine::TransformComponent& ta =
+          view.get<engine::TransformComponent>(agents[i]);
       Velocity& va = view.get<Velocity>(agents[i]);
-      Transform& tb = view.get<Transform>(agents[j]);
+      engine::TransformComponent& tb =
+          view.get<engine::TransformComponent>(agents[j]);
       Velocity& vb = view.get<Velocity>(agents[j]);
-      const engine::AgentPair r = engine::resolveAgentPair(
-          ta.position, va.value, ta.scale, tb.position, vb.value, tb.scale);
-      ta.position = r.posA;
+      const engine::AgentPair r =
+          engine::resolveAgentPair(ta.translation, va.value, ta.scale.x,
+                                   tb.translation, vb.value, tb.scale.x);
+      ta.translation = r.posA;
       va.value = r.velA;
-      tb.position = r.posB;
+      tb.translation = r.posB;
       vb.value = r.velB;
     }
   }
@@ -132,30 +186,32 @@ void ArenaGame::stepSim(float dt) {
   const glm::vec3 boundsMin(-4.75f, -1.0f, -4.75f);
   const glm::vec3 boundsMax(4.75f, 10.0f, 4.75f);
   for (const entt::entity e : view) {
-    Transform& tr = view.get<Transform>(e);
+    engine::TransformComponent& tr = view.get<engine::TransformComponent>(e);
     Velocity& v = view.get<Velocity>(e);
     const engine::WallBounce wb = engine::resolveWallBounce(
-        tr.position, v.value, boundsMin, boundsMax, tr.scale);
-    tr.position = wb.position;
+        tr.translation, v.value, boundsMin, boundsMax, tr.scale.x);
+    tr.translation = wb.position;
     v.value = wb.velocity;
   }
 
   // Combat: contact damage between the player and touching bots; bots regen
   // while not in contact.
   entt::entity playerEnt = entt::null;
-  for (const entt::entity e : m_registry.view<Transform, Player>()) {
+  for (const entt::entity e : reg.view<engine::TransformComponent, Player>()) {
     playerEnt = e;
   }
   if (playerEnt != entt::null) {
-    Transform& pt = m_registry.get<Transform>(playerEnt);
-    Health& ph = m_registry.get<Health>(playerEnt);
-    for (const entt::entity e : m_registry.view<Transform, Health, Bot>()) {
-      Transform& bt = m_registry.get<Transform>(e);
-      Health& bh = m_registry.get<Health>(e);
-      const float dx = bt.position.x - pt.position.x;
-      const float dz = bt.position.z - pt.position.z;
+    engine::TransformComponent& pt =
+        reg.get<engine::TransformComponent>(playerEnt);
+    Health& ph = reg.get<Health>(playerEnt);
+    for (const entt::entity e :
+         reg.view<engine::TransformComponent, Health, Bot>()) {
+      engine::TransformComponent& bt = reg.get<engine::TransformComponent>(e);
+      Health& bh = reg.get<Health>(e);
+      const float dx = bt.translation.x - pt.translation.x;
+      const float dz = bt.translation.z - pt.translation.z;
       const float dist = std::sqrt(dx * dx + dz * dz);
-      if (dist < bt.scale + pt.scale + kContactMargin) {
+      if (dist < bt.scale.x + pt.scale.x + kContactMargin) {
         ph.current = engine::adjustHealth(ph.current, -kBotDps * dt, ph.max);
         bh.current = engine::adjustHealth(bh.current, -kPlayerDps * dt, bh.max);
       } else {
@@ -165,19 +221,20 @@ void ArenaGame::stepSim(float dt) {
 
     // Death / respawn.
     std::uniform_real_distribution<float> angleD(0.0f, 6.2831853f);
-    for (const entt::entity e : m_registry.view<Transform, Health, Bot>()) {
-      Health& bh = m_registry.get<Health>(e);
+    for (const entt::entity e :
+         reg.view<engine::TransformComponent, Health, Bot>()) {
+      Health& bh = reg.get<Health>(e);
       if (bh.current <= 0.0f) {
-        Transform& bt = m_registry.get<Transform>(e);
+        engine::TransformComponent& bt = reg.get<engine::TransformComponent>(e);
         const float a = angleD(m_rng);
-        bt.position = {std::cos(a) * kArenaEdge, 0.3f,
-                       std::sin(a) * kArenaEdge};
+        bt.translation = {std::cos(a) * kArenaEdge, 0.3f,
+                          std::sin(a) * kArenaEdge};
         bh.current = bh.max;
         ++m_kills;
       }
     }
     if (ph.current <= 0.0f) {
-      pt.position = {0.0f, 0.3f, 0.0f};
+      pt.translation = {0.0f, 0.3f, 0.0f};
       ph.current = ph.max;
       ++m_deaths;
     }
@@ -201,6 +258,27 @@ void ArenaGame::onRender(engine::Renderer& renderer, int width, int height) {
         {{0.4f, 0.85f, 0.3f, 1.0f}, 0.0f, 0.4f, s});
     m_botMats[3] = renderer.registry().registerMaterial(
         {{0.9f, 0.75f, 0.2f, 1.0f}, 1.0f, 0.3f, s});
+
+    // Entities are created (transform-only) during onAttach's warm-up, before
+    // the Renderer exists. Attach MeshComponent now, on the first onRender,
+    // once the cube handle + materials are available.
+    const engine::MeshHandle cube = renderer.unitCubeMesh();
+    for (engine::SceneObject& wall : m_walls) {
+      wall.addComponent<engine::MeshComponent>(
+          engine::MeshComponent{cube, m_wallMat});
+    }
+    m_ground.addComponent<engine::MeshComponent>(
+        engine::MeshComponent{cube, m_groundMat});
+
+    entt::registry& reg = m_scene.registry();
+    for (const entt::entity e : reg.view<Player>()) {
+      reg.emplace<engine::MeshComponent>(e, cube, m_playerMat);
+    }
+    int botIdx = 0;
+    for (const entt::entity e : reg.view<Bot>()) {
+      reg.emplace<engine::MeshComponent>(e, cube, m_botMats[botIdx++ % 4]);
+    }
+
     m_resourcesReady = true;
   }
 
@@ -214,8 +292,6 @@ void ArenaGame::onRender(engine::Renderer& renderer, int width, int height) {
   const float aspect =
       height > 0 ? static_cast<float>(width) / static_cast<float>(height)
                  : 1.0f;
-  m_camera.resize(aspect);
-  renderer.setCamera(m_camera.camera());
 
   std::vector<engine::PointLight> lights;
   const glm::vec3 palette[4] = {{1.0f, 0.3f, 0.2f},
@@ -232,40 +308,15 @@ void ArenaGame::onRender(engine::Renderer& renderer, int width, int height) {
   }
   renderer.setPointLights(lights);
 
-  const engine::MeshHandle cube = renderer.unitCubeMesh();
-  engine::MeshRenderer meshes(renderer.queue(), renderer.registry(),
-                              m_camera.camera());
-  auto wall = [&](const glm::vec3& center, const glm::vec3& size) {
-    glm::mat4 t = glm::translate(glm::mat4(1.0f), center);
-    t = glm::scale(t, size * 0.5f);
-    meshes.submit(cube, m_wallMat, t);
-  };
-  wall({0.0f, 0.5f, -5.0f}, {10.0f, 1.0f, 0.25f});
-  wall({0.0f, 0.5f, 5.0f}, {10.0f, 1.0f, 0.25f});
-  wall({-5.0f, 0.5f, 0.0f}, {0.25f, 1.0f, 10.0f});
-  wall({5.0f, 0.5f, 0.0f}, {0.25f, 1.0f, 10.0f});
-
-  glm::mat4 ground = glm::translate(glm::mat4(1.0f), {0.0f, -0.05f, 0.0f});
-  ground = glm::scale(ground, {20.0f, 0.05f, 20.0f});
-  meshes.submit(cube, m_groundMat, ground);
-
-  int idx = 0;
-  auto view = m_registry.view<Transform>();
-  for (const entt::entity e : view) {
-    const Transform& tr = view.get<Transform>(e);
-    const engine::MaterialHandle mat =
-        m_registry.all_of<Player>(e) ? m_playerMat : m_botMats[(idx++) % 4];
-    glm::mat4 m = glm::translate(glm::mat4(1.0f), tr.position);
-    m = glm::scale(m, glm::vec3(tr.scale));
-    meshes.submit(cube, mat, m);
-  }
+  m_scene.render(renderer, aspect);
 
   if (m_font) {
+    entt::registry& reg = m_scene.registry();
     float playerHp = 0.0f;
     float playerMax = 0.0f;
-    for (const entt::entity e : m_registry.view<Health, Player>()) {
-      playerHp = m_registry.get<Health>(e).current;
-      playerMax = m_registry.get<Health>(e).max;
+    for (const entt::entity e : reg.view<Health, Player>()) {
+      playerHp = reg.get<Health>(e).current;
+      playerMax = reg.get<Health>(e).max;
     }
     const float bottom = static_cast<float>(height);
 

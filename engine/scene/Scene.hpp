@@ -10,6 +10,7 @@
 namespace engine {
 
 class SceneObject;
+class Renderer;
 
 class Scene {
  public:
@@ -30,6 +31,7 @@ class Scene {
   CameraUniforms cameraUniforms(float aspect) const;
 
   void update(float dt);
+  void render(Renderer& renderer, float aspect);
 
   entt::registry& registry() { return m_registry; }
   const entt::registry& registry() const { return m_registry; }

@@ -55,7 +55,8 @@ add_library(
   engine/renderer/MeshRenderer.cpp
   engine/renderer/CommandBufferPool.cpp
   engine/scene/Scene.cpp
-  engine/scene/CameraControllerSystems.cpp)
+  engine/scene/CameraControllerSystems.cpp
+  engine/scene/SceneRender.cpp)
 
 target_include_directories(bot_arena_engine PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}
                                                    ${Stb_INCLUDE_DIR})
