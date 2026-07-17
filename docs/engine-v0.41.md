@@ -2,7 +2,7 @@
 
 v0.40 gave `Scene::render` a `MeshComponent` path, but `MeshComponent` holds
 exactly one `{mesh, material}` pair — it cannot represent a multi-submesh
-`Model` (Viper = 3 submeshes, eliteship = 7). Shooter worked around that gap
+`Model` (Viper = 3 submeshes, eliteship = 5). Shooter worked around that gap
 with render-only proxy `SceneObject`s, one per submesh, resynced every frame.
 v0.41 closes it properly: a `ModelComponent` draws a whole `Model` through a
 second `Scene::render` loop, `ResourceRegistry` gains a model store to back
