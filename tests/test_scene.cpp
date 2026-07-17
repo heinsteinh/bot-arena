@@ -3,6 +3,7 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/quaternion.hpp>
 
+#include "engine/scene/CameraMath.hpp"
 #include "engine/scene/Components.hpp"
 #include "engine/scene/Scene.hpp"
 #include "engine/scene/SceneCamera.hpp"
@@ -155,4 +156,48 @@ TEST_CASE("cameraUniforms composes view and projection", "[scene]") {
       REQUIRE(u.viewProjection[c][r] ==
               Catch::Approx(expected.viewProjection[c][r]).margin(1e-4));
   REQUIRE(u.cameraPosition.y == Catch::Approx(4.0f).margin(1e-4));
+}
+
+TEST_CASE("orientationFromYawPitch conventions", "[cameramath]") {
+  const glm::vec3 f0 =
+      engine::forwardDir(engine::orientationFromYawPitch(0, 0));
+  REQUIRE(f0.x == Catch::Approx(0.0f).margin(1e-4));
+  REQUIRE(f0.y == Catch::Approx(0.0f).margin(1e-4));
+  REQUIRE(f0.z == Catch::Approx(-1.0f).margin(1e-4));
+  // +pitch looks up (forward.y > 0); +yaw turns forward off -Z.
+  REQUIRE(engine::forwardDir(engine::orientationFromYawPitch(0, 30)).y > 0.0f);
+  REQUIRE(engine::forwardDir(engine::orientationFromYawPitch(30, 0)).x !=
+          Catch::Approx(0.0f).margin(1e-3));
+}
+
+TEST_CASE("lookRotation orients -Z along the direction", "[cameramath]") {
+  const glm::vec3 dir = glm::normalize(glm::vec3(1.0f, -2.0f, 3.0f));
+  const glm::vec3 f = engine::forwardDir(engine::lookRotation(dir));
+  REQUIRE(f.x == Catch::Approx(dir.x).margin(1e-4));
+  REQUIRE(f.y == Catch::Approx(dir.y).margin(1e-4));
+  REQUIRE(f.z == Catch::Approx(dir.z).margin(1e-4));
+}
+
+TEST_CASE("lookRotation view matches glm::lookAt", "[cameramath]") {
+  const glm::vec3 eye(2.0f, 3.0f, 5.0f), target(0.0f, 1.0f, 0.0f);
+  engine::TransformComponent t;
+  t.translation = eye;
+  t.rotation = engine::lookRotation(target - eye);
+  const glm::mat4 got = engine::viewMatrix(t);
+  const glm::mat4 want = glm::lookAt(eye, target, glm::vec3(0.0f, 1.0f, 0.0f));
+  for (int c = 0; c < 4; ++c)
+    for (int r = 0; r < 4; ++r)
+      REQUIRE(got[c][r] == Catch::Approx(want[c][r]).margin(1e-4));
+}
+
+TEST_CASE("orbitPosition sits distance from center along -forward",
+          "[cameramath]") {
+  const glm::vec3 center(0.0f, 1.0f, 0.0f);
+  const glm::vec3 pos = engine::orbitPosition(center, 45.0f, 30.0f, 10.0f);
+  REQUIRE(glm::length(pos - center) == Catch::Approx(10.0f).margin(1e-4));
+  // camera looks from pos back toward center
+  const glm::vec3 fwd =
+      engine::forwardDir(engine::orientationFromYawPitch(45.0f, 30.0f));
+  REQUIRE(glm::length((pos + fwd * 10.0f) - center) ==
+          Catch::Approx(0.0f).margin(1e-3));
 }
