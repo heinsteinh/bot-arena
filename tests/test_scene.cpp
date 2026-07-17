@@ -19,20 +19,30 @@ void requireMat4Eq(const glm::mat4& a, const glm::mat4& b) {
 TEST_CASE("TransformComponent localTransform is T*R*S", "[scene]") {
   engine::TransformComponent t;
   t.translation = {1.0f, 2.0f, 3.0f};
-  t.rotation = {glm::radians(10.0f), glm::radians(20.0f), 0.0f};
+  t.rotation =
+      glm::quat(glm::vec3(glm::radians(10.0f), glm::radians(20.0f), 0.0f));
   t.scale = {2.0f, 0.5f, 1.0f};
   const glm::mat4 expected = glm::translate(glm::mat4(1.0f), t.translation) *
-                             glm::mat4_cast(glm::quat(t.rotation)) *
+                             glm::mat4_cast(t.rotation) *
                              glm::scale(glm::mat4(1.0f), t.scale);
   requireMat4Eq(t.localTransform(), expected);
+
+  // Independent oracle: 90 deg about +Y rotates +X to -Z (scale x=2 -> length
+  // 2).
+  engine::TransformComponent r;
+  r.rotation = glm::angleAxis(glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+  const glm::vec4 x = r.localTransform() * glm::vec4(1.0f, 0.0f, 0.0f, 0.0f);
+  REQUIRE(x.x == Catch::Approx(0.0f).margin(1e-4));
+  REQUIRE(x.y == Catch::Approx(0.0f).margin(1e-4));
+  REQUIRE(x.z == Catch::Approx(-1.0f).margin(1e-4));
 }
 
 TEST_CASE("viewMatrix is inverse of translate*rotate", "[scene]") {
   engine::TransformComponent t;
   t.translation = {0.0f, 4.0f, 9.0f};
-  t.rotation = {glm::radians(-24.0f), 0.0f, 0.0f};
+  t.rotation = glm::quat(glm::vec3(glm::radians(-24.0f), 0.0f, 0.0f));
   const glm::mat4 world = glm::translate(glm::mat4(1.0f), t.translation) *
-                          glm::mat4_cast(glm::quat(t.rotation));
+                          glm::mat4_cast(t.rotation);
   requireMat4Eq(engine::viewMatrix(t), glm::inverse(world));
   // camera position = inverse(view) translation column
   const glm::vec3 pos = glm::vec3(glm::inverse(engine::viewMatrix(t))[3]);
@@ -134,7 +144,7 @@ TEST_CASE("cameraUniforms composes view and projection", "[scene]") {
   engine::TransformComponent& tf =
       cam.getComponent<engine::TransformComponent>();
   tf.translation = {0.0f, 4.0f, 9.0f};
-  tf.rotation = {glm::radians(-24.0f), 0.0f, 0.0f};
+  tf.rotation = glm::quat(glm::vec3(glm::radians(-24.0f), 0.0f, 0.0f));
   engine::CameraComponent& cc = cam.addComponent<engine::CameraComponent>();
   cc.fov = 55.0f;
   const engine::CameraUniforms u = scene.cameraUniforms(1.6f);

@@ -13,7 +13,7 @@ namespace engine {
 // scale is intentionally excluded from a view matrix).
 inline glm::mat4 viewMatrix(const TransformComponent& t) {
   const glm::mat4 world = glm::translate(glm::mat4(1.0f), t.translation) *
-                          glm::mat4_cast(glm::quat(t.rotation));
+                          glm::mat4_cast(t.rotation);
   return glm::inverse(world);
 }
 

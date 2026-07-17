@@ -21,13 +21,12 @@ struct TagComponent {
 
 struct TransformComponent {
   glm::vec3 translation{0.0f};
-  glm::vec3 rotation{0.0f};  // euler radians (pitch=x, yaw=y, roll=z)
+  glm::quat rotation{1.0f, 0.0f, 0.0f, 0.0f};  // identity (w,x,y,z)
   glm::vec3 scale{1.0f};
 
   glm::mat4 localTransform() const {
     return glm::translate(glm::mat4(1.0f), translation) *
-           glm::mat4_cast(glm::quat(rotation)) *
-           glm::scale(glm::mat4(1.0f), scale);
+           glm::mat4_cast(rotation) * glm::scale(glm::mat4(1.0f), scale);
   }
 };
 
