@@ -6,6 +6,7 @@
 #include "engine/scene/Components.hpp"
 #include "engine/scene/SceneCamera.hpp"
 
+using engine::cameraTransformFromView;
 using engine::lookAtTransform;
 using engine::TransformComponent;
 using engine::viewMatrix;
@@ -37,4 +38,24 @@ TEST_CASE("lookAtTransform reproduces glm::lookAt: parallax camera") {
 }
 TEST_CASE("lookAtTransform reproduces glm::lookAt: looking down +Z") {
   checkReproducesLookAt({0.0f, 1.0f, -3.0f}, {0.0f, 1.0f, 2.0f});
+}
+
+TEST_CASE("cameraTransformFromView round-trips a perspective view") {
+  const glm::mat4 V =
+      glm::lookAt(glm::vec3(4.0f, 3.0f, 9.0f), glm::vec3(0.0f, 1.0f, 0.0f),
+                  glm::vec3(0.0f, 1.0f, 0.0f));
+  const glm::mat4 got = viewMatrix(cameraTransformFromView(V));
+  for (int c = 0; c < 4; ++c)
+    for (int r = 0; r < 4; ++r)
+      CHECK(got[c][r] == Catch::Approx(V[c][r]).margin(1e-4));
+}
+
+TEST_CASE("cameraTransformFromView round-trips a top-down view") {
+  const glm::mat4 V =
+      glm::lookAt(glm::vec3(0.0f, 14.0f, 0.001f), glm::vec3(0.0f, 0.0f, 0.0f),
+                  glm::vec3(0.0f, 1.0f, 0.0f));
+  const glm::mat4 got = viewMatrix(cameraTransformFromView(V));
+  for (int c = 0; c < 4; ++c)
+    for (int r = 0; r < 4; ++r)
+      CHECK(got[c][r] == Catch::Approx(V[c][r]).margin(1e-4));
 }
