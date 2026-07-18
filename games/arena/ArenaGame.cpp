@@ -12,13 +12,13 @@
 #include "engine/core/Input.hpp"
 #include "engine/gameplay/Combat.hpp"
 #include "engine/physics/Collision.hpp"
-#include "engine/renderer/PointLight.hpp"
 #include "engine/renderer/ResourceRegistry.hpp"
 #include "engine/renderer/text/FontDesc.hpp"
 #include "engine/renderer/text/TextPlacement.hpp"
 #include "engine/renderer/text/TextStyle.hpp"
 #include "engine/scene/Components.hpp"
 #include "engine/scene/ControllerComponents.hpp"
+#include "engine/scene/LightComponent.hpp"
 #include "engine/scene/MeshComponent.hpp"
 #include "games/arena/Components.hpp"
 
@@ -42,6 +42,25 @@ void ArenaGame::onAttach() {
   oc.maxDistance = 40.0f;
 
   spawnEntities();
+
+  // Four static point lights, previously rebuilt every frame in onRender. Now
+  // scene entities; Scene::render collects them via collectLights.
+  {
+    const glm::vec3 palette[4] = {{1.0f, 0.3f, 0.2f},
+                                  {0.3f, 0.6f, 1.0f},
+                                  {0.4f, 1.0f, 0.4f},
+                                  {1.0f, 0.9f, 0.3f}};
+    for (int i = 0; i < 4; ++i) {
+      const float sx = (i & 1) ? 4.0f : -4.0f;
+      const float sz = (i & 2) ? 4.0f : -4.0f;
+      engine::SceneObject light = m_scene.createObject("PointLight");
+      light.getComponent<engine::TransformComponent>().translation = {sx, 2.0f,
+                                                                      sz};
+      light.addComponent<engine::LightComponent>(engine::LightComponent{
+          engine::LightType::Point, palette[i], 3.0f, 8.0f});
+    }
+  }
+
   // Deterministic warm-up so a single-frame (headless screenshot) capture shows
   // a genuinely simulated state — bots advanced along their velocities and some
   // already bounced off the walls. No input during warm-up, so the player
@@ -292,21 +311,6 @@ void ArenaGame::onRender(engine::Renderer& renderer, int width, int height) {
   const float aspect =
       height > 0 ? static_cast<float>(width) / static_cast<float>(height)
                  : 1.0f;
-
-  std::vector<engine::PointLight> lights;
-  const glm::vec3 palette[4] = {{1.0f, 0.3f, 0.2f},
-                                {0.3f, 0.6f, 1.0f},
-                                {0.4f, 1.0f, 0.4f},
-                                {1.0f, 0.9f, 0.3f}};
-  for (int i = 0; i < 4; ++i) {
-    engine::PointLight pl;
-    const float sx = (i & 1) ? 4.0f : -4.0f;
-    const float sz = (i & 2) ? 4.0f : -4.0f;
-    pl.positionRadius = glm::vec4(sx, 2.0f, sz, 8.0f);
-    pl.color = glm::vec4(palette[i], 3.0f);
-    lights.push_back(pl);
-  }
-  renderer.setPointLights(lights);
 
   m_scene.render(renderer, aspect);
 
