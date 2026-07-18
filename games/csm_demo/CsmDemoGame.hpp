@@ -1,10 +1,13 @@
 #ifndef GAMES_CSM_DEMO_CSMDEMOGAME_HPP
 #define GAMES_CSM_DEMO_CSMDEMOGAME_HPP
 
+#include <vector>
+
 #include "engine/core/Layer.hpp"
-#include "engine/renderer/PerspectiveCamera.hpp"
 #include "engine/renderer/RenderCommand.hpp"
 #include "engine/renderer/text/FontAsset.hpp"
+#include "engine/scene/Scene.hpp"
+#include "engine/scene/SceneObject.hpp"
 
 namespace csmdemo {
 
@@ -20,7 +23,8 @@ class CsmDemoGame final : public engine::Layer {
  private:
   void ensureResources(engine::Renderer& renderer);
 
-  engine::PerspectiveCamera m_camera;
+  engine::Scene m_scene;
+  std::vector<engine::SceneObject> m_visuals;  // [0]=ground, [1..8]=pillars
   float m_time = 0.0f;
   bool m_ready = false;
   engine::MaterialHandle m_groundMat = 0;
