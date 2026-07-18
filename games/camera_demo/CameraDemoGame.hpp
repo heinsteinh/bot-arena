@@ -1,6 +1,8 @@
 #ifndef GAMES_CAMERA_DEMO_CAMERADEMOGAME_HPP
 #define GAMES_CAMERA_DEMO_CAMERADEMOGAME_HPP
 
+#include <vector>
+
 #include "engine/core/Layer.hpp"
 #include "engine/renderer/Camera.hpp"
 #include "engine/renderer/FlyCameraController.hpp"
@@ -9,6 +11,8 @@
 #include "engine/renderer/PerspectiveCamera.hpp"
 #include "engine/renderer/RenderCommand.hpp"
 #include "engine/renderer/text/FontAsset.hpp"
+#include "engine/scene/Scene.hpp"
+#include "engine/scene/SceneObject.hpp"
 
 namespace camerademo {
 
@@ -32,6 +36,11 @@ class CameraDemoGame final : public engine::Layer {
   engine::OrthographicCamera m_top;
   int m_view = 0;
   float m_time = 0.0f;
+
+  engine::Scene m_scene;
+  engine::SceneObject m_sceneCam;
+  std::vector<engine::SceneObject>
+      m_visuals;  // [0]=ground,[1..8]=ring,[9]=pillar
 
   bool m_resourcesReady = false;
   engine::MaterialHandle m_groundMat = 0;
