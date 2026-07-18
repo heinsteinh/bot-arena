@@ -3,17 +3,17 @@
 #include <cmath>
 #include <cstdlib>
 #include <glm/glm.hpp>
-#include <glm/gtc/matrix_transform.hpp>
 #include <string>
-#include <vector>
 
 #include "engine/assets/TextureLoader.hpp"
-#include "engine/renderer/MeshRenderer.hpp"
-#include "engine/renderer/PointLight.hpp"
 #include "engine/renderer/Renderer.hpp"
 #include "engine/renderer/text/FontDesc.hpp"
 #include "engine/renderer/text/TextPlacement.hpp"
 #include "engine/renderer/text/TextStyle.hpp"
+#include "engine/scene/Components.hpp"
+#include "engine/scene/LightComponent.hpp"
+#include "engine/scene/MeshComponent.hpp"
+#include "engine/scene/SceneCamera.hpp"
 
 namespace parallaxlightdemo {
 
@@ -21,8 +21,43 @@ void ParallaxLightDemoGame::onAttach() {
   m_screenshot = std::getenv("BOTARENA_SCREENSHOT") != nullptr;
   if (const char* l = std::getenv("BOTARENA_LIGHT"))
     m_lightPreset = std::atoi(l);
-  m_camera.setPerspective(55.0f, 16.0f / 9.0f, 0.1f, 100.0f);
-  m_camera.lookAt({0.5f, 5.5f, 7.0f}, {0.0f, 0.0f, -0.5f});
+
+  engine::SceneObject cam = m_scene.createObject("Camera");
+  cam.getComponent<engine::TransformComponent>() =
+      engine::lookAtTransform({0.5f, 5.5f, 7.0f}, {0.0f, 0.0f, -0.5f});
+  engine::CameraComponent cc;
+  cc.fov = 55.0f;
+  cc.perspNear = 0.1f;
+  cc.perspFar = 100.0f;
+  cc.primary = true;
+  cam.addComponent<engine::CameraComponent>(cc);
+
+  // Floor (material attached in ensureResources).
+  m_floor = m_scene.createObject("Floor");
+  {
+    engine::TransformComponent& t =
+        m_floor.getComponent<engine::TransformComponent>();
+    t.translation = {0.0f, -0.15f, 0.0f};
+    t.scale = {6.0f, 0.3f, 6.0f};
+  }
+
+  // Three orbiting point lights (positions set each frame in onRender);
+  // color/intensity/radius are static.
+  const glm::vec3 lightColors[3] = {
+      {1.0f, 0.55f, 0.35f}, {0.35f, 0.7f, 1.0f}, {0.45f, 1.0f, 0.55f}};
+  for (int i = 0; i < 3; ++i) {
+    m_orbitLights[i] = m_scene.createObject("OrbitLight");
+    m_orbitLights[i].addComponent<engine::LightComponent>(
+        engine::LightComponent{engine::LightType::Point, lightColors[i], 4.5f,
+                               12.0f});
+  }
+
+  // Static near-horizontal directional.
+  engine::SceneObject sun = m_scene.createObject("Sun");
+  sun.getComponent<engine::TransformComponent>().translation = {0.9f, 0.12f,
+                                                                0.25f};
+  sun.addComponent<engine::LightComponent>(engine::LightComponent{
+      engine::LightType::Directional, glm::vec3(1.0f), 1.0f, 10.0f});
 }
 
 void ParallaxLightDemoGame::onUpdate(float dt) { m_time += dt; }
@@ -40,6 +75,9 @@ void ParallaxLightDemoGame::ensureResources(engine::Renderer& renderer) {
   floor.heightMap = engine::loadTexture(tex + "brick_h.png");
   floor.heightScale = 0.04f;
   m_floorMat = renderer.registry().registerMaterial(floor);
+
+  m_floor.addComponent<engine::MeshComponent>(
+      engine::MeshComponent{renderer.unitCubeMesh(), m_floorMat});
   m_ready = true;
 }
 
@@ -57,8 +95,6 @@ void ParallaxLightDemoGame::onRender(engine::Renderer& renderer, int width,
   const float aspect =
       height > 0 ? static_cast<float>(width) / static_cast<float>(height)
                  : 1.0f;
-  m_camera.setPerspective(55.0f, aspect, 0.1f, 100.0f);
-  renderer.setCamera(m_camera);
 
   // Three distinctly-colored point lights orbiting LOW, 120 apart: each casts
   // its own parallax self-shadow (gShadow.g/b/a), so a crevice shadowed from
@@ -67,29 +103,14 @@ void ParallaxLightDemoGame::onRender(engine::Renderer& renderer, int width,
   if (m_screenshot) {
     a = m_lightPreset == 2 ? 3.9f : (m_lightPreset == 1 ? 2.2f : 0.4f);
   }
-  const glm::vec3 lightColors[3] = {{1.0f, 0.55f, 0.35f},   // warm orange
-                                    {0.35f, 0.7f, 1.0f},    // cool blue
-                                    {0.45f, 1.0f, 0.55f}};  // green
   const float twoPi = 6.2831853f;
-  std::vector<engine::PointLight> lights;
   for (int i = 0; i < 3; ++i) {
     const float ai = a + twoPi * static_cast<float>(i) / 3.0f;
-    engine::PointLight pl;
-    pl.positionRadius =
-        glm::vec4(std::cos(ai) * 2.4f, 0.9f, std::sin(ai) * 2.4f, 12.0f);
-    pl.color = glm::vec4(lightColors[i], 4.5f);
-    lights.push_back(pl);
+    m_orbitLights[i].getComponent<engine::TransformComponent>().translation =
+        glm::vec3(std::cos(ai) * 2.4f, 0.9f, std::sin(ai) * 2.4f);
   }
-  renderer.setPointLights(lights);
-  // Directional grazes near-horizontal so the up-facing floor gets little of
-  // it (low ndl) -> the orbiting point lights stay the dominant casters.
-  renderer.setLightDirection(glm::normalize(glm::vec3(0.9f, 0.12f, 0.25f)));
 
-  const engine::MeshHandle cube = renderer.unitCubeMesh();
-  engine::MeshRenderer meshes(renderer.queue(), renderer.registry(), m_camera);
-  glm::mat4 floorM = glm::translate(glm::mat4(1.0f), {0.0f, -0.15f, 0.0f});
-  floorM = glm::scale(floorM, {6.0f, 0.3f, 6.0f});
-  meshes.submit(cube, m_floorMat, floorM);
+  m_scene.render(renderer, aspect);
 
   if (m_font) {
     engine::TextStyle st;

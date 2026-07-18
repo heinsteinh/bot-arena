@@ -2,9 +2,10 @@
 #define GAMES_PARALLAX_LIGHT_DEMO_PARALLAXLIGHTDEMOGAME_HPP
 
 #include "engine/core/Layer.hpp"
-#include "engine/renderer/PerspectiveCamera.hpp"
 #include "engine/renderer/RenderCommand.hpp"
 #include "engine/renderer/text/FontAsset.hpp"
+#include "engine/scene/Scene.hpp"
+#include "engine/scene/SceneObject.hpp"
 
 namespace parallaxlightdemo {
 
@@ -21,7 +22,9 @@ class ParallaxLightDemoGame final : public engine::Layer {
  private:
   void ensureResources(engine::Renderer& renderer);
 
-  engine::PerspectiveCamera m_camera;
+  engine::Scene m_scene;
+  engine::SceneObject m_orbitLights[3];  // animated point lights
+  engine::SceneObject m_floor;
   float m_time = 0.0f;
   bool m_screenshot = false;
   int m_lightPreset = 0;
