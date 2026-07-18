@@ -107,3 +107,31 @@ TEST_CASE("collectLights: mixed scene yields N points and one directional") {
   CHECK(cl.points.size() == 2);
   CHECK(cl.hasDirectional);
 }
+
+TEST_CASE("collectLights: zero-translation directional is ignored") {
+  entt::registry reg;
+  LightComponent d;
+  d.type = LightType::Directional;
+  makeLight(reg, glm::vec3(0.0f, 0.0f, 0.0f), d);
+
+  const CollectedLights cl = engine::collectLights(reg);
+  CHECK_FALSE(cl.hasDirectional);
+  CHECK(cl.points.empty());
+}
+
+TEST_CASE("collectLights: zero directional does not consume the first slot") {
+  entt::registry reg;
+  LightComponent zero;
+  zero.type = LightType::Directional;
+  makeLight(reg, glm::vec3(0.0f, 0.0f, 0.0f), zero);
+  LightComponent valid;
+  valid.type = LightType::Directional;
+  makeLight(reg, glm::vec3(0.5f, 0.7f, 0.35f), valid);
+
+  const CollectedLights cl = engine::collectLights(reg);
+  REQUIRE(cl.hasDirectional);
+  const glm::vec3 expect = glm::normalize(glm::vec3(0.5f, 0.7f, 0.35f));
+  CHECK(cl.directionalDir.x == Catch::Approx(expect.x));
+  CHECK(cl.directionalDir.y == Catch::Approx(expect.y));
+  CHECK(cl.directionalDir.z == Catch::Approx(expect.z));
+}

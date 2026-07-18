@@ -11,13 +11,13 @@
 #include "engine/gameplay/Combat.hpp"
 #include "engine/gameplay/ShipControls.hpp"
 #include "engine/renderer/ParticleInstance.hpp"
-#include "engine/renderer/PointLight.hpp"
 #include "engine/renderer/ResourceRegistry.hpp"
 #include "engine/renderer/text/FontDesc.hpp"
 #include "engine/renderer/text/TextPlacement.hpp"
 #include "engine/renderer/text/TextStyle.hpp"
 #include "engine/scene/Components.hpp"
 #include "engine/scene/ControllerComponents.hpp"
+#include "engine/scene/LightComponent.hpp"
 #include "engine/scene/MeshComponent.hpp"
 #include "engine/scene/ModelComponent.hpp"
 #include "games/shooter/Components.hpp"
@@ -99,6 +99,13 @@ void ShooterGame::onAttach() {
   // signature -- emplace it on the registry directly.
   m_scene.registry().emplace<Player>(static_cast<entt::entity>(player));
   player.addComponent<Health>(Health{kMaxHealth, kMaxHealth});
+
+  // Static point key light, previously rebuilt every frame in onRender.
+  engine::SceneObject keyLight = m_scene.createObject("KeyLight");
+  keyLight.getComponent<engine::TransformComponent>().translation = {0.0f, 8.0f,
+                                                                     4.0f};
+  keyLight.addComponent<engine::LightComponent>(engine::LightComponent{
+      engine::LightType::Point, glm::vec3(1.0f, 0.97f, 0.9f), 3.0f, 40.0f});
 
   for (int i = 0; i < 250; ++i) stepSim(1.0f / 60.0f);
 }
@@ -419,13 +426,6 @@ void ShooterGame::onRender(engine::Renderer& renderer, int width, int height) {
   const float aspect =
       height > 0 ? static_cast<float>(width) / static_cast<float>(height)
                  : 1.0f;
-
-  std::vector<engine::PointLight> lights;
-  engine::PointLight key;
-  key.positionRadius = glm::vec4(0.0f, 8.0f, 4.0f, 40.0f);
-  key.color = glm::vec4(1.0f, 0.97f, 0.9f, 3.0f);
-  lights.push_back(key);
-  renderer.setPointLights(lights);
 
   // Ships/enemies/bullets spawn continuously (before resources are ready
   // during onAttach's warm-up, and every frame afterward), so backfill
