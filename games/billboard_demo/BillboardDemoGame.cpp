@@ -4,16 +4,17 @@
 #include <cmath>
 #include <cstdlib>
 #include <glm/glm.hpp>
-#include <glm/gtc/matrix_transform.hpp>
 #include <string>
 #include <vector>
 
-#include "engine/renderer/MeshRenderer.hpp"
-#include "engine/renderer/PointLight.hpp"
 #include "engine/renderer/Renderer.hpp"
 #include "engine/renderer/text/FontDesc.hpp"
 #include "engine/renderer/text/TextPlacement.hpp"
 #include "engine/renderer/text/TextStyle.hpp"
+#include "engine/scene/Components.hpp"
+#include "engine/scene/LightComponent.hpp"
+#include "engine/scene/MeshComponent.hpp"
+#include "engine/scene/SceneCamera.hpp"
 
 namespace billboarddemo {
 
@@ -48,14 +49,49 @@ void BillboardDemoGame::onAttach() {
       pitch = 15.0f;
     }
   }
-  m_camera.setTarget({0.0f, 0.5f, 0.0f});
-  m_camera.setOrbit(yaw, pitch, 15.0f);
+  const glm::vec3 target{0.0f, 0.5f, 0.0f};
+  const float yawR = glm::radians(yaw);
+  const float pitchR = glm::radians(pitch);
+  const glm::vec3 offset{std::cos(pitchR) * std::cos(yawR), std::sin(pitchR),
+                         std::cos(pitchR) * std::sin(yawR)};
+  engine::SceneObject cam = m_scene.createObject("Camera");
+  cam.getComponent<engine::TransformComponent>() =
+      engine::lookAtTransform(target + offset * 15.0f, target);
+  engine::CameraComponent cc;
+  cc.fov = 60.0f;
+  cc.perspNear = 0.1f;
+  cc.perspFar = 100.0f;
+  cc.primary = true;
+  cam.addComponent<engine::CameraComponent>(cc);
+
+  engine::SceneObject key = m_scene.createObject("KeyLight");
+  key.getComponent<engine::TransformComponent>().translation = {3.0f, 6.0f,
+                                                                3.0f};
+  key.addComponent<engine::LightComponent>(engine::LightComponent{
+      engine::LightType::Point, glm::vec3(1.0f, 0.95f, 0.9f), 3.0f, 20.0f});
 
   // Enemies in a ring.
   const int n = 6;
   for (int i = 0; i < n; ++i) {
     const float a = glm::radians(360.0f / n * static_cast<float>(i));
     m_enemies.push_back({std::cos(a) * 5.0f, 0.6f, std::sin(a) * 5.0f});
+  }
+
+  engine::SceneObject ground = m_scene.createObject("Ground");
+  {
+    engine::TransformComponent& t =
+        ground.getComponent<engine::TransformComponent>();
+    t.translation = {0.0f, -0.05f, 0.0f};
+    t.scale = {24.0f, 0.1f, 24.0f};
+  }
+  m_visuals.push_back(ground);
+  for (const glm::vec3& e : m_enemies) {
+    engine::SceneObject o = m_scene.createObject("Enemy");
+    engine::TransformComponent& t =
+        o.getComponent<engine::TransformComponent>();
+    t.translation = e;
+    t.scale = {1.0f, 1.2f, 1.0f};
+    m_visuals.push_back(o);
   }
 
   // Pre-seed damage numbers over several enemies at different distances, with a
@@ -110,6 +146,13 @@ void BillboardDemoGame::ensureResources(engine::Renderer& renderer) {
       {{0.30f, 0.32f, 0.36f, 1.0f}, 0.0f, 0.9f, s});
   m_enemyMat = renderer.registry().registerMaterial(
       {{0.75f, 0.25f, 0.22f, 1.0f}, 0.1f, 0.4f, s});
+
+  const engine::MeshHandle cube = renderer.unitCubeMesh();
+  for (size_t i = 0; i < m_visuals.size(); ++i) {
+    const engine::MaterialHandle mat = i == 0 ? m_groundMat : m_enemyMat;
+    m_visuals[i].addComponent<engine::MeshComponent>(
+        engine::MeshComponent{cube, mat});
+  }
   m_ready = true;
 }
 
@@ -127,28 +170,7 @@ void BillboardDemoGame::onRender(engine::Renderer& renderer, int width,
   const float aspect =
       height > 0 ? static_cast<float>(width) / static_cast<float>(height)
                  : 1.0f;
-  m_camera.resize(aspect);
-  m_camera.update(0.0f);
-  renderer.setCamera(m_camera.camera());
-
-  std::vector<engine::PointLight> lights;
-  engine::PointLight key;
-  key.positionRadius = glm::vec4(3.0f, 6.0f, 3.0f, 20.0f);
-  key.color = glm::vec4(1.0f, 0.95f, 0.9f, 3.0f);
-  lights.push_back(key);
-  renderer.setPointLights(lights);
-
-  const engine::MeshHandle cube = renderer.unitCubeMesh();
-  engine::MeshRenderer meshes(renderer.queue(), renderer.registry(),
-                              m_camera.camera());
-  glm::mat4 ground = glm::translate(glm::mat4(1.0f), {0.0f, -0.05f, 0.0f});
-  ground = glm::scale(ground, {24.0f, 0.1f, 24.0f});
-  meshes.submit(cube, m_groundMat, ground);
-  for (const glm::vec3& e : m_enemies) {
-    glm::mat4 m = glm::translate(glm::mat4(1.0f), e);
-    m = glm::scale(m, glm::vec3(1.0f, 1.2f, 1.0f));
-    meshes.submit(cube, m_enemyMat, m);
-  }
+  m_scene.render(renderer, aspect);
 
   // Damage numbers as camera-facing billboards (SDF, outlined, faded).
   if (m_font) {
