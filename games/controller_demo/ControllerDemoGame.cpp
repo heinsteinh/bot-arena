@@ -11,6 +11,7 @@
 #include "engine/renderer/text/TextStyle.hpp"
 #include "engine/scene/Components.hpp"
 #include "engine/scene/ControllerComponents.hpp"
+#include "engine/scene/LightComponent.hpp"
 #include "engine/scene/MeshComponent.hpp"
 
 namespace controllerdemo {
@@ -44,6 +45,14 @@ void ControllerDemoGame::onAttach() {
     m_visuals.push_back(o);
   }
   m_followTarget = m_visuals[1];  // a cube the Follow camera tracks
+
+  // Directional key light: translation is the toward-light vector that used to
+  // be passed to renderer.setLightDirection(); Scene::render normalizes it.
+  engine::SceneObject sun = m_scene.createObject("Sun");
+  sun.getComponent<engine::TransformComponent>().translation = {0.5f, 0.7f,
+                                                                0.35f};
+  sun.addComponent<engine::LightComponent>(engine::LightComponent{
+      engine::LightType::Directional, glm::vec3(1.0f), 1.0f, 10.0f});
 
   setController(m_controller);
 }
@@ -138,8 +147,6 @@ void ControllerDemoGame::onRender(engine::Renderer& renderer, int width,
   const float aspect =
       height > 0 ? static_cast<float>(width) / static_cast<float>(height)
                  : 1.0f;
-  renderer.setLightDirection(glm::normalize(glm::vec3(0.5f, 0.7f, 0.35f)));
-  renderer.setPointLights({});
   m_scene.render(renderer, aspect);
 
   if (m_font) {
