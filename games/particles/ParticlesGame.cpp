@@ -2,14 +2,16 @@
 
 #include <imgui.h>
 
-#include <glm/gtc/matrix_transform.hpp>
+#include <cmath>
 #include <vector>
 
 #include "engine/particles/Particle.hpp"
-#include "engine/renderer/MeshRenderer.hpp"
 #include "engine/renderer/ParticleInstance.hpp"
-#include "engine/renderer/PointLight.hpp"
 #include "engine/renderer/ResourceRegistry.hpp"
+#include "engine/scene/Components.hpp"
+#include "engine/scene/LightComponent.hpp"
+#include "engine/scene/MeshComponent.hpp"
+#include "engine/scene/SceneCamera.hpp"
 
 namespace particles {
 
@@ -119,8 +121,34 @@ constexpr int kPresetCount = 6;
 }  // namespace
 
 void ParticlesGame::onAttach() {
-  m_camera.setTarget({0.0f, 1.0f, 0.0f});
-  m_camera.setOrbit(40.0f, 25.0f, 14.0f);
+  const glm::vec3 target{0.0f, 1.0f, 0.0f};
+  const float yawR = glm::radians(40.0f);
+  const float pitchR = glm::radians(25.0f);
+  const glm::vec3 offset{std::cos(pitchR) * std::cos(yawR), std::sin(pitchR),
+                         std::cos(pitchR) * std::sin(yawR)};
+  engine::SceneObject cam = m_scene.createObject("Camera");
+  cam.getComponent<engine::TransformComponent>() =
+      engine::lookAtTransform(target + offset * 14.0f, target);
+  engine::CameraComponent cc;
+  cc.fov = 60.0f;
+  cc.perspNear = 0.1f;
+  cc.perspFar = 100.0f;
+  cc.primary = true;
+  cam.addComponent<engine::CameraComponent>(cc);
+
+  engine::SceneObject key = m_scene.createObject("KeyLight");
+  key.getComponent<engine::TransformComponent>().translation = {0.0f, 6.0f,
+                                                                0.0f};
+  key.addComponent<engine::LightComponent>(engine::LightComponent{
+      engine::LightType::Point, glm::vec3(1.0f, 1.0f, 1.0f), 2.0f, 20.0f});
+
+  m_ground = m_scene.createObject("Ground");
+  {
+    engine::TransformComponent& t =
+        m_ground.getComponent<engine::TransformComponent>();
+    t.translation = {0.0f, -0.05f, 0.0f};
+    t.scale = {20.0f, 0.05f, 20.0f};
+  }
 
   std::uniform_real_distribution<float> posD(-2.0f, 2.0f);
   std::uniform_real_distribution<float> velD(-3.5f, 3.5f);
@@ -129,13 +157,21 @@ void ParticlesGame::onAttach() {
         {{posD(m_rng), 1.0f, posD(m_rng)}, {velD(m_rng), 0.0f, velD(m_rng)}});
   }
 
+  for (size_t i = 0; i < m_bouncers.size(); ++i) {
+    engine::SceneObject o = m_scene.createObject("Bouncer");
+    engine::TransformComponent& t =
+        o.getComponent<engine::TransformComponent>();
+    t.translation = m_bouncers[i].position;
+    t.scale = glm::vec3(0.3f);
+    m_bouncerObjs.push_back(o);
+  }
+
   m_editorParams = kPresets[m_selectedPreset].make();
 
   for (int i = 0; i < 90; ++i) stepSim(1.0f / 60.0f);
 }
 
 void ParticlesGame::onUpdate(float dt) {
-  m_camera.update(dt);
   m_accumulator += dt;
   const float step = 1.0f / 60.0f;
   int steps = 0;
@@ -182,35 +218,26 @@ void ParticlesGame::onRender(engine::Renderer& renderer, int width,
         {{0.15f, 0.15f, 0.2f, 1.0f}, 0.0f, 0.9f, s});
     m_bouncerMat = renderer.registry().registerMaterial(
         {{0.8f, 0.8f, 0.85f, 1.0f}, 0.2f, 0.4f, s});
+
+    const engine::MeshHandle cubeMesh = renderer.unitCubeMesh();
+    m_ground.addComponent<engine::MeshComponent>(
+        engine::MeshComponent{cubeMesh, m_groundMat});
+    for (engine::SceneObject& b : m_bouncerObjs)
+      b.addComponent<engine::MeshComponent>(
+          engine::MeshComponent{cubeMesh, m_bouncerMat});
+
     m_resourcesReady = true;
   }
 
   const float aspect =
       height > 0 ? static_cast<float>(width) / static_cast<float>(height)
                  : 1.0f;
-  m_camera.resize(aspect);
-  renderer.setCamera(m_camera.camera());
 
-  std::vector<engine::PointLight> lights;
-  engine::PointLight key;
-  key.positionRadius = glm::vec4(0.0f, 6.0f, 0.0f, 20.0f);
-  key.color = glm::vec4(1.0f, 1.0f, 1.0f, 2.0f);
-  lights.push_back(key);
-  renderer.setPointLights(lights);
+  for (size_t i = 0; i < m_bouncerObjs.size(); ++i)
+    m_bouncerObjs[i].getComponent<engine::TransformComponent>().translation =
+        m_bouncers[i].position;
 
-  const engine::MeshHandle cube = renderer.unitCubeMesh();
-  engine::MeshRenderer meshes(renderer.queue(), renderer.registry(),
-                              m_camera.camera());
-
-  glm::mat4 ground = glm::translate(glm::mat4(1.0f), {0.0f, -0.05f, 0.0f});
-  ground = glm::scale(ground, {20.0f, 0.05f, 20.0f});
-  meshes.submit(cube, m_groundMat, ground);
-
-  for (const Bouncer& b : m_bouncers) {
-    glm::mat4 m = glm::translate(glm::mat4(1.0f), b.position);
-    m = glm::scale(m, glm::vec3(0.3f));
-    meshes.submit(cube, m_bouncerMat, m);
-  }
+  m_scene.render(renderer, aspect);
 
   std::vector<engine::ParticleInstance> instances;
   const auto submit = [&](const engine::ParticleSystem& sys) {

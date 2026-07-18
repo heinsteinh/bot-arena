@@ -6,8 +6,9 @@
 
 #include "engine/core/Layer.hpp"
 #include "engine/particles/ParticleSystem.hpp"
-#include "engine/renderer/OrbitCameraController.hpp"
 #include "engine/renderer/RenderCommand.hpp"
+#include "engine/scene/Scene.hpp"
+#include "engine/scene/SceneObject.hpp"
 
 namespace particles {
 
@@ -21,7 +22,9 @@ class ParticlesGame final : public engine::Layer {
  private:
   void stepSim(float dt);
 
-  engine::OrbitCameraController m_camera;
+  engine::Scene m_scene;
+  engine::SceneObject m_ground;
+  std::vector<engine::SceneObject> m_bouncerObjs;  // parallel to m_bouncers
   std::mt19937 m_rng{7};
   float m_accumulator = 0.0f;
   bool m_resourcesReady = false;
