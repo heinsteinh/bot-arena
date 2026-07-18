@@ -6,9 +6,10 @@
 #include <vector>
 
 #include "engine/core/Layer.hpp"
-#include "engine/renderer/OrbitCameraController.hpp"
 #include "engine/renderer/RenderCommand.hpp"
 #include "engine/renderer/text/FontAsset.hpp"
+#include "engine/scene/Scene.hpp"
+#include "engine/scene/SceneObject.hpp"
 
 namespace billboarddemo {
 
@@ -29,7 +30,8 @@ class BillboardDemoGame final : public engine::Layer {
  private:
   void ensureResources(engine::Renderer& renderer);
 
-  engine::OrbitCameraController m_camera;
+  engine::Scene m_scene;
+  std::vector<engine::SceneObject> m_visuals;  // [0]=ground, [1..6]=enemies
   std::vector<glm::vec3> m_enemies;
   std::vector<DamageNumber> m_numbers;
   std::mt19937 m_rng{1337};    // deterministic

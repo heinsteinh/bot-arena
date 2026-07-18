@@ -5,16 +5,19 @@
 #include <cstdlib>
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtc/quaternion.hpp>
 #include <string>
 #include <vector>
 
 #include "engine/core/Input.hpp"
-#include "engine/renderer/MeshRenderer.hpp"
-#include "engine/renderer/PointLight.hpp"
 #include "engine/renderer/Renderer.hpp"
 #include "engine/renderer/text/FontDesc.hpp"
 #include "engine/renderer/text/TextPlacement.hpp"
 #include "engine/renderer/text/TextStyle.hpp"
+#include "engine/scene/Components.hpp"
+#include "engine/scene/LightComponent.hpp"
+#include "engine/scene/MeshComponent.hpp"
+#include "engine/scene/SceneCamera.hpp"
 
 namespace camerademo {
 
@@ -37,6 +40,57 @@ void CameraDemoGame::onAttach() {
     if (idx >= 0 && idx < kViewCount) m_view = idx;
   }
   m_fly.setPose({6.0f, 4.0f, 10.0f}, -120.0f, -18.0f);
+
+  m_sceneCam = m_scene.createObject("Camera");
+  {
+    engine::CameraComponent cc;  // projection set per-view each frame
+    cc.primary = true;
+    m_sceneCam.addComponent<engine::CameraComponent>(cc);
+  }
+
+  // 4 colored point lights (static), same as the old onRender loop.
+  const glm::vec3 palette[4] = {{1.0f, 0.4f, 0.3f},
+                                {0.3f, 0.6f, 1.0f},
+                                {0.4f, 1.0f, 0.5f},
+                                {1.0f, 0.9f, 0.4f}};
+  for (int i = 0; i < 4; ++i) {
+    const float sx = (i & 1) ? 5.0f : -5.0f;
+    const float sz = (i & 2) ? 5.0f : -5.0f;
+    engine::SceneObject L = m_scene.createObject("PointLight");
+    L.getComponent<engine::TransformComponent>().translation = {sx, 3.0f, sz};
+    L.addComponent<engine::LightComponent>(engine::LightComponent{
+        engine::LightType::Point, palette[i], 3.0f, 12.0f});
+  }
+
+  // Ground + ring of 8 rotated cubes + center pillar (materials attached in
+  // ensureResources).
+  engine::SceneObject ground = m_scene.createObject("Ground");
+  {
+    engine::TransformComponent& t =
+        ground.getComponent<engine::TransformComponent>();
+    t.translation = {0.0f, -0.05f, 0.0f};
+    t.scale = {24.0f, 0.1f, 24.0f};
+  }
+  m_visuals.push_back(ground);
+  const int ringCount = 8;
+  for (int i = 0; i < ringCount; ++i) {
+    const float a = glm::radians(360.0f / ringCount * static_cast<float>(i));
+    engine::SceneObject o = m_scene.createObject("RingCube");
+    engine::TransformComponent& t =
+        o.getComponent<engine::TransformComponent>();
+    t.translation = {std::cos(a) * 5.0f, 0.75f, std::sin(a) * 5.0f};
+    t.rotation = glm::angleAxis(a, glm::vec3(0.0f, 1.0f, 0.0f));
+    t.scale = {1.2f, 1.5f, 1.2f};
+    m_visuals.push_back(o);
+  }
+  engine::SceneObject pillar = m_scene.createObject("Pillar");
+  {
+    engine::TransformComponent& t =
+        pillar.getComponent<engine::TransformComponent>();
+    t.translation = {0.0f, 1.0f, 0.0f};
+    t.scale = {1.5f, 2.0f, 1.5f};
+  }
+  m_visuals.push_back(pillar);
 }
 
 void CameraDemoGame::onUpdate(float dt) {
@@ -87,6 +141,17 @@ void CameraDemoGame::ensureResources(engine::Renderer& renderer) {
       {{0.35f, 0.85f, 0.40f, 1.0f}, 0.1f, 0.35f, s});
   m_cubeMats[3] = renderer.registry().registerMaterial(
       {{0.95f, 0.80f, 0.25f, 1.0f}, 0.6f, 0.30f, s});
+
+  const engine::MeshHandle cube = renderer.unitCubeMesh();
+  // m_visuals: [0]=ground, [1..8]=ring cubes (cubeMats[i%4] on ring index),
+  // [9]=pillar (cubeMats[3]).
+  m_visuals[0].addComponent<engine::MeshComponent>(
+      engine::MeshComponent{cube, m_groundMat});
+  for (int i = 0; i < 8; ++i)
+    m_visuals[1 + i].addComponent<engine::MeshComponent>(
+        engine::MeshComponent{cube, m_cubeMats[i % 4]});
+  m_visuals[9].addComponent<engine::MeshComponent>(
+      engine::MeshComponent{cube, m_cubeMats[3]});
   m_resourcesReady = true;
 }
 
@@ -105,44 +170,26 @@ void CameraDemoGame::onRender(engine::Renderer& renderer, int width,
       height > 0 ? static_cast<float>(width) / static_cast<float>(height)
                  : 1.0f;
   const engine::Camera& cam = activeCamera(aspect);
-  renderer.setCamera(cam);
 
-  // Colored point lights so materials read under every view.
-  std::vector<engine::PointLight> lights;
-  const glm::vec3 palette[4] = {{1.0f, 0.4f, 0.3f},
-                                {0.3f, 0.6f, 1.0f},
-                                {0.4f, 1.0f, 0.5f},
-                                {1.0f, 0.9f, 0.4f}};
-  for (int i = 0; i < 4; ++i) {
-    engine::PointLight pl;
-    const float sx = (i & 1) ? 5.0f : -5.0f;
-    const float sz = (i & 2) ? 5.0f : -5.0f;
-    pl.positionRadius = glm::vec4(sx, 3.0f, sz, 12.0f);
-    pl.color = glm::vec4(palette[i], 3.0f);
-    lights.push_back(pl);
+  // Drive the Scene camera from the active view.
+  m_sceneCam.getComponent<engine::TransformComponent>() =
+      engine::cameraTransformFromView(cam.view());
+  {
+    engine::CameraComponent& cc =
+        m_sceneCam.getComponent<engine::CameraComponent>();
+    if (m_view == 2) {  // TOP-DOWN ortho
+      cc.type = engine::ProjectionType::Orthographic;
+      cc.orthoSize = 24.0f;
+      cc.orthoNear = -100.0f;
+      cc.orthoFar = 100.0f;
+    } else {
+      cc.type = engine::ProjectionType::Perspective;
+      cc.fov = m_view == 3 ? 55.0f : 60.0f;  // front=55, orbit/fly=60
+      cc.perspNear = 0.1f;
+      cc.perspFar = 100.0f;
+    }
   }
-  renderer.setPointLights(lights);
-
-  // Scene: ground slab + a ring of cubes + a center pillar.
-  const engine::MeshHandle cube = renderer.unitCubeMesh();
-  engine::MeshRenderer meshes(renderer.queue(), renderer.registry(), cam);
-
-  glm::mat4 ground = glm::translate(glm::mat4(1.0f), {0.0f, -0.05f, 0.0f});
-  ground = glm::scale(ground, {24.0f, 0.1f, 24.0f});
-  meshes.submit(cube, m_groundMat, ground);
-
-  const int ringCount = 8;
-  for (int i = 0; i < ringCount; ++i) {
-    const float a = glm::radians(360.0f / ringCount * static_cast<float>(i));
-    const glm::vec3 pos{std::cos(a) * 5.0f, 0.75f, std::sin(a) * 5.0f};
-    glm::mat4 m = glm::translate(glm::mat4(1.0f), pos);
-    m = glm::rotate(m, a, {0.0f, 1.0f, 0.0f});
-    m = glm::scale(m, glm::vec3(1.2f, 1.5f, 1.2f));
-    meshes.submit(cube, m_cubeMats[i % 4], m);
-  }
-  glm::mat4 center = glm::translate(glm::mat4(1.0f), {0.0f, 1.0f, 0.0f});
-  center = glm::scale(center, {1.5f, 2.0f, 1.5f});
-  meshes.submit(cube, m_cubeMats[3], center);
+  m_scene.render(renderer, aspect);
 
   // HUD (SDF effects), clear of the top-left debug overlay.
   if (!m_font) return;

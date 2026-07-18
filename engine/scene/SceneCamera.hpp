@@ -32,6 +32,18 @@ inline TransformComponent lookAtTransform(
   return t;
 }
 
+// A TransformComponent whose viewMatrix() equals the given (rigid) view matrix.
+// world = inverse(view) = translate * rotate; extract translation + rotation.
+// The general form of lookAtTransform, for cameras that aren't a clean
+// eye/target lookAt (fly, orthographic).
+inline TransformComponent cameraTransformFromView(const glm::mat4& view) {
+  const glm::mat4 world = glm::inverse(view);
+  TransformComponent t;
+  t.translation = glm::vec3(world[3]);
+  t.rotation = glm::quat_cast(glm::mat3(world));
+  return t;
+}
+
 inline glm::mat4 projectionMatrix(const CameraComponent& c, float aspect) {
   const float a = c.fixedAspectRatio ? c.aspect : aspect;
   if (c.type == ProjectionType::Perspective) {
