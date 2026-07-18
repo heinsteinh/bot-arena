@@ -7,11 +7,11 @@
 
 #include "engine/assets/ModelLoader.hpp"
 #include "engine/core/AssetPath.hpp"
-#include "engine/renderer/PointLight.hpp"
 #include "engine/renderer/Renderer.hpp"
 #include "engine/renderer/ResourceRegistry.hpp"
 #include "engine/scene/Components.hpp"
 #include "engine/scene/ControllerComponents.hpp"
+#include "engine/scene/LightComponent.hpp"
 #include "engine/scene/MeshComponent.hpp"
 #include "engine/scene/ModelComponent.hpp"
 
@@ -59,6 +59,13 @@ void ModelsGame::onAttach() {
   for (const auto& f : files) {
     m_entries.push_back({f[0], f[1], 0, false});
   }
+
+  // Static point key light, previously rebuilt every frame in onRender.
+  engine::SceneObject keyLight = m_scene.createObject("KeyLight");
+  keyLight.getComponent<engine::TransformComponent>().translation = {2.0f, 3.0f,
+                                                                     2.0f};
+  keyLight.addComponent<engine::LightComponent>(engine::LightComponent{
+      engine::LightType::Point, glm::vec3(1.0f, 0.97f, 0.9f), 2.5f, 15.0f});
 }
 
 void ModelsGame::onUpdate(float dt) {
@@ -98,13 +105,6 @@ void ModelsGame::onRender(engine::Renderer& renderer, int width, int height) {
   const float aspect =
       height > 0 ? static_cast<float>(width) / static_cast<float>(height)
                  : 1.0f;
-
-  std::vector<engine::PointLight> lights;
-  engine::PointLight key;
-  key.positionRadius = glm::vec4(2.0f, 3.0f, 2.0f, 15.0f);
-  key.color = glm::vec4(1.0f, 0.97f, 0.9f, 2.5f);
-  lights.push_back(key);
-  renderer.setPointLights(lights);
 
   m_scene.render(renderer, aspect);
 }
