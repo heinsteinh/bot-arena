@@ -1,10 +1,13 @@
 #ifndef GAMES_NORMALMAP_DEMO_NORMALMAPDEMOGAME_HPP
 #define GAMES_NORMALMAP_DEMO_NORMALMAPDEMOGAME_HPP
 
+#include <vector>
+
 #include "engine/core/Layer.hpp"
-#include "engine/renderer/PerspectiveCamera.hpp"
 #include "engine/renderer/RenderCommand.hpp"
 #include "engine/renderer/text/FontAsset.hpp"
+#include "engine/scene/Scene.hpp"
+#include "engine/scene/SceneObject.hpp"
 
 namespace normalmapdemo {
 
@@ -22,7 +25,9 @@ class NormalMapDemoGame final : public engine::Layer {
  private:
   void ensureResources(engine::Renderer& renderer);
 
-  engine::PerspectiveCamera m_camera;
+  engine::Scene m_scene;
+  engine::SceneObject m_keyLight;            // animated directional
+  std::vector<engine::SceneObject> m_walls;  // flat / mapped / parallax
   float m_time = 0.0f;
   bool m_screenshot = false;
   int m_lightPreset = 0;

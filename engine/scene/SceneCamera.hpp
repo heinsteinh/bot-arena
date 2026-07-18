@@ -17,6 +17,21 @@ inline glm::mat4 viewMatrix(const TransformComponent& t) {
   return glm::inverse(world);
 }
 
+// A TransformComponent whose viewMatrix() equals glm::lookAt(eye, target, up).
+// world = inverse(lookAt) = translate(eye) * rotate; we extract eye as the
+// translation and the rotation as a quaternion. Reproduces a raw lookAt camera
+// exactly (the quat_cast round-trip is sub-pixel), so a migrated Scene camera
+// matches the original view matrix.
+inline TransformComponent lookAtTransform(
+    const glm::vec3& eye, const glm::vec3& target,
+    const glm::vec3& up = glm::vec3(0.0f, 1.0f, 0.0f)) {
+  const glm::mat4 world = glm::inverse(glm::lookAt(eye, target, up));
+  TransformComponent t;
+  t.translation = eye;
+  t.rotation = glm::quat_cast(glm::mat3(world));
+  return t;
+}
+
 inline glm::mat4 projectionMatrix(const CameraComponent& c, float aspect) {
   const float a = c.fixedAspectRatio ? c.aspect : aspect;
   if (c.type == ProjectionType::Perspective) {
