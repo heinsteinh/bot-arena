@@ -8,6 +8,7 @@
 #include "engine/renderer/text/TextPlacement.hpp"
 #include "engine/renderer/text/TextStyle.hpp"
 #include "engine/scene/Components.hpp"
+#include "engine/scene/LightComponent.hpp"
 #include "engine/scene/MeshComponent.hpp"
 
 namespace scenedemo {
@@ -46,6 +47,14 @@ void SceneDemoGame::onAttach() {
     t.scale = glm::vec3(0.9f);
     m_visuals.push_back(o);
   }
+
+  // Directional key light: translation is the "toward-light" vector that used
+  // to be passed to renderer.setLightDirection(); Scene::render normalizes it.
+  engine::SceneObject sun = m_scene.createObject("Sun");
+  sun.getComponent<engine::TransformComponent>().translation = {0.5f, 0.7f,
+                                                                0.35f};
+  sun.addComponent<engine::LightComponent>(engine::LightComponent{
+      engine::LightType::Directional, glm::vec3(1.0f), 1.0f, 10.0f});
 }
 
 void SceneDemoGame::ensureResources(engine::Renderer& renderer) {
@@ -81,8 +90,6 @@ void SceneDemoGame::onRender(engine::Renderer& renderer, int width,
                  : 1.0f;
 
   // The renderer's camera comes entirely from the scene's primary camera.
-  renderer.setLightDirection(glm::normalize(glm::vec3(0.5f, 0.7f, 0.35f)));
-  renderer.setPointLights({});
   m_scene.render(renderer, aspect);
 
   if (m_font) {

@@ -3,6 +3,7 @@
 #include "engine/renderer/MeshRenderer.hpp"
 #include "engine/renderer/Renderer.hpp"
 #include "engine/scene/Components.hpp"
+#include "engine/scene/LightCollection.hpp"
 #include "engine/scene/MeshComponent.hpp"
 #include "engine/scene/ModelComponent.hpp"
 #include "engine/scene/ModelTransform.hpp"
@@ -13,6 +14,9 @@ namespace engine {
 void Scene::render(Renderer& renderer, float aspect) {
   const CameraUniforms cu = cameraUniforms(aspect);
   renderer.setCamera(cu);
+  const CollectedLights cl = collectLights(m_registry);
+  if (!cl.points.empty()) renderer.setPointLights(cl.points);
+  if (cl.hasDirectional) renderer.setLightDirection(cl.directionalDir);
   MatrixCamera cam(cu.view, cu.projection);
   MeshRenderer meshes(renderer.queue(), renderer.registry(), cam);
   auto view = m_registry.view<TransformComponent, MeshComponent>();
