@@ -3,17 +3,18 @@
 #include <cmath>
 #include <cstdlib>
 #include <glm/glm.hpp>
-#include <glm/gtc/matrix_transform.hpp>
 #include <string>
 #include <vector>
 
 #include "engine/assets/TextureLoader.hpp"
-#include "engine/renderer/MeshRenderer.hpp"
-#include "engine/renderer/PointLight.hpp"
 #include "engine/renderer/Renderer.hpp"
 #include "engine/renderer/text/FontDesc.hpp"
 #include "engine/renderer/text/TextPlacement.hpp"
 #include "engine/renderer/text/TextStyle.hpp"
+#include "engine/scene/Components.hpp"
+#include "engine/scene/LightComponent.hpp"
+#include "engine/scene/MeshComponent.hpp"
+#include "engine/scene/SceneCamera.hpp"
 
 namespace normalmapdemo {
 
@@ -21,8 +22,39 @@ void NormalMapDemoGame::onAttach() {
   m_screenshot = std::getenv("BOTARENA_SCREENSHOT") != nullptr;
   if (const char* l = std::getenv("BOTARENA_LIGHT"))
     m_lightPreset = std::atoi(l);
-  m_camera.setPerspective(55.0f, 16.0f / 9.0f, 0.1f, 100.0f);
-  m_camera.lookAt({2.6f, 2.0f, 10.0f}, {0.0f, 1.6f, 0.0f});
+
+  engine::SceneObject cam = m_scene.createObject("Camera");
+  cam.getComponent<engine::TransformComponent>() =
+      engine::lookAtTransform({2.6f, 2.0f, 10.0f}, {0.0f, 1.6f, 0.0f});
+  engine::CameraComponent cc;
+  cc.fov = 55.0f;
+  cc.perspNear = 0.1f;
+  cc.perspFar = 100.0f;
+  cc.primary = true;
+  cam.addComponent<engine::CameraComponent>(cc);
+
+  // Animated directional key (translation set each frame in onRender).
+  m_keyLight = m_scene.createObject("KeyLight");
+  m_keyLight.addComponent<engine::LightComponent>(engine::LightComponent{
+      engine::LightType::Directional, glm::vec3(1.0f), 1.0f, 10.0f});
+
+  // Dim point fill so the key reads.
+  engine::SceneObject fill = m_scene.createObject("Fill");
+  fill.getComponent<engine::TransformComponent>().translation = {0.0f, 2.0f,
+                                                                 6.0f};
+  fill.addComponent<engine::LightComponent>(engine::LightComponent{
+      engine::LightType::Point, glm::vec3(0.5f, 0.55f, 0.65f), 0.8f, 24.0f});
+
+  // Three walls (materials attached in ensureResources).
+  const float xs[3] = {-4.4f, 0.0f, 4.4f};
+  for (float x : xs) {
+    engine::SceneObject o = m_scene.createObject("Wall");
+    engine::TransformComponent& t =
+        o.getComponent<engine::TransformComponent>();
+    t.translation = {x, 1.5f, 0.0f};
+    t.scale = {2.0f, 3.0f, 0.2f};
+    m_walls.push_back(o);
+  }
 }
 
 void NormalMapDemoGame::onUpdate(float dt) { m_time += dt; }
@@ -53,6 +85,14 @@ void NormalMapDemoGame::ensureResources(engine::Renderer& renderer) {
   parallax.heightMap = brickH;
   parallax.heightScale = 0.08f;
   m_parallaxMat = renderer.registry().registerMaterial(parallax);
+
+  const engine::MeshHandle cube = renderer.unitCubeMesh();
+  const engine::MaterialHandle wallMats[3] = {m_flatMat, m_mappedMat,
+                                              m_parallaxMat};
+  for (size_t i = 0; i < m_walls.size(); ++i) {
+    m_walls[i].addComponent<engine::MeshComponent>(
+        engine::MeshComponent{cube, wallMats[i]});
+  }
   m_ready = true;
 }
 
@@ -70,32 +110,14 @@ void NormalMapDemoGame::onRender(engine::Renderer& renderer, int width,
   const float aspect =
       height > 0 ? static_cast<float>(width) / static_cast<float>(height)
                  : 1.0f;
-  m_camera.setPerspective(55.0f, aspect, 0.1f, 100.0f);
-  renderer.setCamera(m_camera);
-
   // Directional key grazes the walls -> drives both the PCF shadow map and the
   // parallax self-shadow. BOTARENA_LIGHT freezes two raking angles.
   float a = m_time * 0.5f;
   if (m_screenshot) a = m_lightPreset == 1 ? 2.3f : 0.7f;
-  renderer.setLightDirection(glm::normalize(
-      glm::vec3(std::cos(a), 0.28f, std::sin(a) * 0.35f + 0.32f)));
-  std::vector<engine::PointLight> lights;
-  engine::PointLight fill;
-  fill.positionRadius = glm::vec4(0.0f, 2.0f, 6.0f, 24.0f);
-  fill.color = glm::vec4(0.5f, 0.55f, 0.65f, 0.8f);  // dim, so the key reads
-  lights.push_back(fill);
-  renderer.setPointLights(lights);
+  m_keyLight.getComponent<engine::TransformComponent>().translation =
+      glm::vec3(std::cos(a), 0.28f, std::sin(a) * 0.35f + 0.32f);
 
-  const engine::MeshHandle cube = renderer.unitCubeMesh();
-  engine::MeshRenderer meshes(renderer.queue(), renderer.registry(), m_camera);
-  auto wall = [&](float x, engine::MaterialHandle mat) {
-    glm::mat4 m = glm::translate(glm::mat4(1.0f), {x, 1.5f, 0.0f});
-    m = glm::scale(m, {2.0f, 3.0f, 0.2f});
-    meshes.submit(cube, mat, m);
-  };
-  wall(-4.4f, m_flatMat);
-  wall(0.0f, m_mappedMat);
-  wall(4.4f, m_parallaxMat);
+  m_scene.render(renderer, aspect);
 
   // Billboard labels over each wall.
   if (m_font) {
